@@ -34,46 +34,53 @@ const TurnoRotativos = () => {
     const realHora = hora >= 24 ? hora - 24 : hora;
     return realHora.toString().padStart(2, '0') + ":00";
   };
-
-  const generarTurnosDinamicos = (inicio, fin, duracionTurno) => {
+  const generarTurnosDinamicos = (inicio, fin, duracionTurno, solape = 0) => {
     const turnos = [];
     let actual = inicio;
     let index = 1;
-
-    const limite = fin > inicio ? fin : fin + 24; // soporta cierres tipo 07 (día siguiente)
-
-    while ((limite - actual) >= duracionTurno) {
+  
+    const limite = fin > inicio ? fin : fin + 24;
+  
+    while (actual < limite) {
       const inicioTurno = actual;
-      const finTurno = actual + duracionTurno;
-
+      let finTurno = actual + duracionTurno;
+  
+      if (finTurno > limite) {
+        finTurno = limite; // cortar el turno para no pasar del cierre
+      }
+  
       turnos.push({
         nombre: `Turno ${index}`,
-        horario: `${formatearHora(inicioTurno)}–${formatearHora(finTurno)}`,
         inicio: inicioTurno,
         fin: finTurno
       });
-
-      actual = finTurno;
+  
+      actual += duracionTurno - solape;
       index++;
+    }
+  
+    return turnos;
+  };
+  
+
+  const turnos = useMemo(() => {
+    let solape = 0; // por ejemplo, 1 hora
+    // Activar solape solo si los turnos no cubren justo 24 horas
+    if ((24 % horasEfectivasPorTurno) !== 0) {
+      solape = 1; // Solo usar si no es múltiplo exacto
     }
 
 
-    return turnos;
-  };
 
-
-
-  const turnos = useMemo(() => {
     if (horarioAbierto === horarioCierre) {
-      // caso especial: cobertura completa 24 horas
-      return generarTurnosDinamicos(horarioAbierto, horarioAbierto + 24, horasEfectivasPorTurno);
+      return generarTurnosDinamicos(horarioAbierto, horarioAbierto + 24, horasEfectivasPorTurno, solape);
     }
 
     const finReal = horarioCierre > horarioAbierto
       ? horarioCierre
       : horarioCierre + 24;
 
-    return generarTurnosDinamicos(horarioAbierto, finReal, horasEfectivasPorTurno);
+    return generarTurnosDinamicos(horarioAbierto, finReal, horasEfectivasPorTurno, solape);
   }, [horarioAbierto, horarioCierre, horasEfectivasPorTurno]);
 
 
