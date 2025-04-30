@@ -1,0 +1,116 @@
+body {
+    background-color: #f9f9f9;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+  }
+  
+  .container {
+    display: grid;
+    grid-template-columns: 1fr 2fr; /* 1 parte cálculos, 2 partes malla */
+    gap: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  
+  .left-panel, .right-panel {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+  }
+  
+  .title {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-align: center;
+  }
+  
+  .input-group {
+    margin-bottom: 15px;
+  }
+  
+  .input-group input {
+    padding: 8px;
+    margin-left: 10px;
+  }
+  
+  .input-group button {
+    padding: 8px 12px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    margin-left: 10px;
+  }
+  
+  .input-group button:hover {
+    background-color: #0056b3;
+  }
+  
+  .export-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-weight: bold;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  
+  .export-button:hover {
+    background-color: #218838;
+  }
+  
+  .worker-list ul {
+    list-style: none;
+    padding-left: 0;
+  }
+  
+  .worker-list li {
+    margin-bottom: 5px;
+  }
+  
+  .card {
+    background: white;
+    padding: 15px;
+    margin-top: 15px;
+    border-radius: 8px;
+    box-shadow: 0px 0px 5px rgba(0,0,0,0.05);
+  }
+  
+  .table-container {
+    overflow-x: auto;
+    margin-top: 20px;
+  }
+  
+  .turno-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  
+  .turno-table th, .turno-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: center;
+  }
+  
+  .turno-table th {
+    background-color: #f2f2f2;
+  }
+  
+  .alert {
+    color: red;
+    font-weight: bold;
+  }
+  .infraccion-turno {
+    background-color: #ffe0e0;
+    color: #b30000;
+    font-weight: bold;
+  }
+  
+  
