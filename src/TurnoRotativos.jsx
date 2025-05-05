@@ -24,6 +24,20 @@ const TurnoRotativos = () => {
 
   const [horasEfectivasPorTurno, setHorasEfectivasPorTurno] = useState(8);
   const [horasColacion, setHorasColacion] = useState(1);
+
+  // variables para inicio de semana dinamico
+  const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+  const [inicioSemana, setInicioSemana] = useState('Lunes'); // Puedes conectar esto a un <select>
+  const [diasFuncionamiento, setDiasFuncionamiento] = useState(7); // Por defecto 7 (toda la semana)
+
+  const dias = useMemo(() => {
+    const inicioIndex = diasSemana.indexOf(inicioSemana);
+    const diasRotados = [...diasSemana.slice(inicioIndex), ...diasSemana.slice(0, inicioIndex)];
+    return diasRotados.slice(0, diasFuncionamiento);
+  }, [inicioSemana, diasFuncionamiento]);
+
+
   const formato24 = (horaDecimal) => {
     const horas = Math.floor(horaDecimal).toString().padStart(2, '0');
     const minutos = Math.round((horaDecimal % 1) * 60).toString().padStart(2, '0');
@@ -99,7 +113,6 @@ const TurnoRotativos = () => {
 
 
 
-  const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
 
   const agregarTrabajador = () => {
@@ -126,7 +139,6 @@ const TurnoRotativos = () => {
   const generarTurnos = () => {
     const resultado = [];
     const domingosContador = {};
-    const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
 
 
@@ -287,7 +299,7 @@ const TurnoRotativos = () => {
 
 
   const turnosPorDia = turnos.length;
-  const diasPorSemana = 7;
+  const diasPorSemana = dias.length;
   const totalHorasSemana = turnos.length * horasEfectivasPorTurno * diasPorSemana;
   const totalHorasDisponibles = trabajadores.reduce((total, trabajador) => total + trabajador.horasDisponibles, 0);
   //const datosTurnos = generarTurnos();//cambiar
@@ -302,7 +314,7 @@ const TurnoRotativos = () => {
     const { resultado, horasTrabajadasPorTrabajador } = generarTurnos();
     setDatosTurnos(resultado);
     setHorasTrabajadas(horasTrabajadasPorTrabajador);
-  }, [trabajadores, semanas, horasEfectivasPorTurno, horasColacion, horarioAbierto, horarioCierre, fechaInicio]);
+  }, [trabajadores, semanas, horasEfectivasPorTurno, horasColacion, horarioAbierto, horarioCierre, fechaInicio,inicioSemana,diasFuncionamiento]);
 
   const exportarExcel = () => {
     // Cabecera dinámica con los nombres de los turnos activos
@@ -332,19 +344,25 @@ const TurnoRotativos = () => {
 
   const contarDomingos = (datosTurnos) => {
     const contador = {};
-    trabajadores.forEach((trabajador) => { contador[trabajador.nombre] = 0; });
+    trabajadores.forEach((trabajador) => {
+      contador[trabajador.nombre] = 0;
+    });
 
     datosTurnos.forEach((semana) => {
-      const domingo = semana.dias[6];
-      domingo.asignaciones.forEach((asignacion) => {
-        if (contador[asignacion.trabajador.nombre] !== undefined) {
-          contador[asignacion.trabajador.nombre]++;
+      const diaDomingo = semana.dias.find(d => d.dia === "Domingo");
+      if (!diaDomingo) return; // Si no hay domingo en esa semana, omitir
+
+      diaDomingo.asignaciones.forEach((asignacion) => {
+        const nombre = asignacion.trabajador?.nombre;
+        if (nombre && contador[nombre] !== undefined) {
+          contador[nombre]++;
         }
       });
     });
 
     return contador;
   };
+
 
   const validarDescansos = (datosTurnos) => {
     const descansosIncorrectos = [];
@@ -353,6 +371,7 @@ const TurnoRotativos = () => {
       for (let s = 0; s < datosTurnos.length; s++) {
         const semana = datosTurnos[s];
 
+        if (semana.dias.length < 2) continue; 
         for (let d = 0; d < semana.dias.length - 1; d++) {
           const diaHoy = semana.dias[d];
           const diaManiana = semana.dias[d + 1];
@@ -630,7 +649,32 @@ const TurnoRotativos = () => {
             ))}
           </ul>
         </div>
+        <div className="input-group">
+          <label>
+            Día de inicio de semana:
+            <select value={inicioSemana} onChange={(e) => setInicioSemana(e.target.value)}>
+              {diasSemana.map((dia) => (
+                <option key={dia} value={dia}>{dia}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            Días de funcionamiento:
+            <input
+              type="number"
+              min="1"
+              max="7"
+              value={diasFuncionamiento}
+              onChange={(e) => setDiasFuncionamiento(Number(e.target.value))}
+            />
+            
+          </label>
+
+        </div>
+
       </div>
+
 
 
       {/* Panel Derecho */}
