@@ -30,81 +30,76 @@ const TurnoRotativos = () => {
     return `${horas}:${minutos}:00`;
   };
 
-  const formatearHora = (hora) => {
-    const realHora = hora >= 24 ? hora - 24 : hora;
-    return realHora.toString().padStart(2, '0') + ":00";
-  };
+  function formatearHora(decimal) {
+    const horas = Math.floor(decimal % 24);
+    const minutos = Math.round((decimal % 1) * 60);
+
+    const hh = horas.toString().padStart(2, '0');
+    const mm = minutos.toString().padStart(2, '0');
+
+    return `${hh}:${mm}`;
+  }
+
   const generarTurnosDinamicos = (inicio, fin, duracionTurno, solape = 0) => {
     const turnos = [];
     let actual = inicio;
     let index = 1;
-  
+
+    // Asegura que el límite sea al menos 24 si fin < inicio
     const limite = fin > inicio ? fin : fin + 24;
-  
+
     while (actual < limite) {
       const inicioTurno = actual;
       let finTurno = actual + duracionTurno;
-  
-      if (finTurno > limite) {
-        finTurno = limite; // cortar el turno para no pasar del cierre
-      }
-  
+
+      // No cortar turno si es 24/7
+      /*if (finTurno > limite && horarioAbierto !== horarioCierre) {
+         finTurno = limite;
+       }*/
+
       turnos.push({
         nombre: `Turno ${index}`,
         inicio: inicioTurno,
-        fin: finTurno
+        fin: finTurno,
+        inicioVisual: formatearHora(inicioTurno),
+        finVisual: formatearHora(finTurno),
+        cruzaDia: finTurno >= 24
       });
-  
+
       actual += duracionTurno - solape;
+
       index++;
     }
-  
+
     return turnos;
   };
-  
+
+
+
 
   const turnos = useMemo(() => {
-    let solape = 0; // por ejemplo, 1 hora
-    // Activar solape solo si los turnos no cubren justo 24 horas
-    if ((24 % horasEfectivasPorTurno) !== 0) {
-      solape = 1; // Solo usar si no es múltiplo exacto
+    let solape = 0;
+
+    const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
+
+    if ((24 % duracionTurnoTotal) !== 0) {
+      solape = 1;
     }
 
-
-
     if (horarioAbierto === horarioCierre) {
-      return generarTurnosDinamicos(horarioAbierto, horarioAbierto + 24, horasEfectivasPorTurno, solape);
+      return generarTurnosDinamicos(horarioAbierto, horarioAbierto + 24, duracionTurnoTotal, solape);
     }
 
     const finReal = horarioCierre > horarioAbierto
       ? horarioCierre
       : horarioCierre + 24;
 
-    return generarTurnosDinamicos(horarioAbierto, finReal, horasEfectivasPorTurno, solape);
-  }, [horarioAbierto, horarioCierre, horasEfectivasPorTurno]);
+    return generarTurnosDinamicos(horarioAbierto, finReal, duracionTurnoTotal, solape);
+  }, [horarioAbierto, horarioCierre, horasEfectivasPorTurno, horasColacion]);
+
 
 
   const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-  // FUNCIONALIDAD: Determinar qué turnos aplicar según rango de horario definido
-  /* const turnosPermitidos = useMemo(() => {
-     return turnos.filter(t => {
-       // Caso especial: si estamos en 24/7 o el horarioCierre es 31 (07:00 del día siguiente)
-       if (horarioAbierto === 0 && horarioCierre === 31) return true;
- 
-       // Validación si el turno está completamente dentro del rango
-       const inicioReal = t.inicio >= 24 ? t.inicio - 24 : t.inicio;
-       const finReal = t.fin >= 24 ? t.fin - 24 : t.fin;
- 
-       const rangoInicio = horarioAbierto;
-       const rangoFin = horarioCierre > horarioAbierto ? horarioCierre : horarioCierre + 24;
- 
-       const turnoInicio = t.inicio;
-       const turnoFin = t.fin;
- 
-       // Aceptar solo turnos que comienzan y terminan dentro del horario definido
-       return (turnoInicio >= rangoInicio && turnoFin <= rangoFin);
-     });
-   }, [horarioAbierto, horarioCierre]);*/
 
 
   const agregarTrabajador = () => {
@@ -132,6 +127,8 @@ const TurnoRotativos = () => {
     const resultado = [];
     const domingosContador = {};
     const dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
+
 
     // Inicializar contador de domingos
     trabajadores.forEach((trabajador) => {
@@ -184,7 +181,7 @@ const TurnoRotativos = () => {
             if (!puedeDomingo) return false;
 
             const horasPendientes = trabajador.horasDisponibles - horasAsignadas[trabajador.nombre];
-            if (horasPendientes < horasEfectivasPorTurno) return false;
+            if (horasPendientes < duracionTurnoTotal) return false;
 
             // Validar descanso de al menos 12 horas
             const fechaAnterior = new Date(fechaActual);
@@ -250,13 +247,13 @@ const TurnoRotativos = () => {
               turno: turnoSeleccionado.nombre,
               horasAcumuladas: horasAsignadas[trabajadorElegible.nombre],
             });
-            horasTrabajadasPorTrabajador[trabajadorElegible.nombre] += horasEfectivasPorTurno;
+            horasTrabajadasPorTrabajador[trabajadorElegible.nombre] += duracionTurnoTotal;
 
             if (diaNombre === "Domingo") {
               domingosContador[trabajadorElegible.nombre]++;
             }
 
-            horasAsignadas[trabajadorElegible.nombre] += horasEfectivasPorTurno;
+            horasAsignadas[trabajadorElegible.nombre] += duracionTurnoTotal;
 
             indiceRotacion = (indiceRotacion + 1) % trabajadores.length;
           } else {
@@ -297,6 +294,11 @@ const TurnoRotativos = () => {
   const [datosTurnos, setDatosTurnos] = useState([]);
   const [horasTrabajadasPorTrabajador, setHorasTrabajadas] = useState({});
   useEffect(() => {
+    if (horasColacion < 0.5) {
+      alert("❗ La colación mínima debe ser de 0.5 horas (30 minutos). Ajusta el valor.");
+      setHorasColacion(0.5);
+      return;
+    }
     const { resultado, horasTrabajadasPorTrabajador } = generarTurnos();
     setDatosTurnos(resultado);
     setHorasTrabajadas(horasTrabajadasPorTrabajador);
@@ -483,6 +485,7 @@ const TurnoRotativos = () => {
           <label>Horas efectivas por turno:</label>
           <input
             type="number"
+            step="any"
             value={horasEfectivasPorTurno}
             onChange={(e) => setHorasEfectivasPorTurno(Number(e.target.value))}
           />
@@ -492,9 +495,20 @@ const TurnoRotativos = () => {
           <label>Horas de colación:</label>
           <input
             type="number"
+            step="0.1"
+            min="0.5"
             value={horasColacion}
-            onChange={(e) => setHorasColacion(Number(e.target.value))}
+            onChange={(e) => {
+              const value = Number(e.target.value);
+              if (value >= 0.5) {
+                setHorasColacion(value);
+              } else {
+                alert("La colación debe ser de al menos 0.5 horas (30 minutos)");
+                setHorasColacion(0.5);
+              }
+            }}
           />
+
         </div>
         <div className="input-group">
           <label>Fecha de inicio:</label>
@@ -675,3 +689,26 @@ const TurnoRotativos = () => {
 
 
 export default TurnoRotativos;
+
+
+// funciones viejas
+// FUNCIONALIDAD: Determinar qué turnos aplicar según rango de horario definido
+/* const turnosPermitidos = useMemo(() => {
+   return turnos.filter(t => {
+     // Caso especial: si estamos en 24/7 o el horarioCierre es 31 (07:00 del día siguiente)
+     if (horarioAbierto === 0 && horarioCierre === 31) return true;
+ 
+     // Validación si el turno está completamente dentro del rango
+     const inicioReal = t.inicio >= 24 ? t.inicio - 24 : t.inicio;
+     const finReal = t.fin >= 24 ? t.fin - 24 : t.fin;
+ 
+     const rangoInicio = horarioAbierto;
+     const rangoFin = horarioCierre > horarioAbierto ? horarioCierre : horarioCierre + 24;
+ 
+     const turnoInicio = t.inicio;
+     const turnoFin = t.fin;
+ 
+     // Aceptar solo turnos que comienzan y terminan dentro del horario definido
+     return (turnoInicio >= rangoInicio && turnoFin <= rangoFin);
+   });
+ }, [horarioAbierto, horarioCierre]);*/
