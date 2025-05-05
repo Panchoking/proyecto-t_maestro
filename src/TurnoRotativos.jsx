@@ -368,9 +368,18 @@ const TurnoRotativos = () => {
     return contador;
   };
 
-
   const validarDescansos = (datosTurnos) => {
     const descansosIncorrectos = [];
+  
+    const yaRegistrado = (registro) => {
+      return descansosIncorrectos.some((d) =>
+        d.trabajador === registro.trabajador &&
+        d.fechaActual === registro.fechaActual &&
+        d.turnoActual === registro.turnoActual &&
+        d.fechaSiguiente === registro.fechaSiguiente &&
+        d.turnoSiguiente === registro.turnoSiguiente
+      );
+    };
   
     trabajadores.forEach((trabajador) => {
       for (let s = 0; s < datosTurnos.length; s++) {
@@ -380,49 +389,61 @@ const TurnoRotativos = () => {
           const diaHoy = semana.dias[d];
           const fechaHoy = new Date(diaHoy.fecha);
   
+          // ⚠️ Filtrar asignaciones válidas
           const asignacionesHoy = diaHoy.asignaciones.filter(
-            (a) => a.trabajador?.nombre === trabajador.nombre
+            (a) =>
+              a.trabajador?.nombre === trabajador.nombre &&
+              a.turno &&
+              !a.turno.toLowerCase().includes("no cobertura")
           );
   
-          // Validar descansos entre turnos del mismo día
+          // 1️⃣ Validar descansos entre turnos del MISMO día
           for (let i = 0; i < asignacionesHoy.length; i++) {
             const turnoA = turnos.find(t => t.nombre === asignacionesHoy[i].turno);
+            if (!turnoA) continue;
             const finA = turnoA.fin >= turnoA.inicio ? turnoA.fin : turnoA.fin + 24;
   
             for (let j = i + 1; j < asignacionesHoy.length; j++) {
               const turnoB = turnos.find(t => t.nombre === asignacionesHoy[j].turno);
+              if (!turnoB) continue;
               const inicioB = turnoB.inicio >= turnoB.inicio ? turnoB.inicio : turnoB.inicio + 24;
   
               const descanso = Math.abs(inicioB - finA);
   
-              if (descanso < 12) {
-                descansosIncorrectos.push({
-                  trabajador: trabajador.nombre,
-                  diaActual: diaHoy.dia,
-                  fechaActual: diaHoy.fecha,
-                  turnoActual: asignacionesHoy[i].turno,
-                  horarioActual: `${formatearHora(turnoA.inicio)}–${formatearHora(turnoA.fin)}`,
-                  diaSiguiente: diaHoy.dia,
-                  fechaSiguiente: diaHoy.fecha,
-                  turnoSiguiente: asignacionesHoy[j].turno,
-                  horarioSiguiente: `${formatearHora(turnoB.inicio)}–${formatearHora(turnoB.fin)}`,
-                  descanso
-                });
+              const registro = {
+                trabajador: trabajador.nombre,
+                diaActual: diaHoy.dia,
+                fechaActual: diaHoy.fecha,
+                turnoActual: asignacionesHoy[i].turno,
+                horarioActual: `${formatearHora(turnoA.inicio)}–${formatearHora(turnoA.fin)}`,
+                diaSiguiente: diaHoy.dia,
+                fechaSiguiente: diaHoy.fecha,
+                turnoSiguiente: asignacionesHoy[j].turno,
+                horarioSiguiente: `${formatearHora(turnoB.inicio)}–${formatearHora(turnoB.fin)}`,
+                descanso
+              };
+  
+              if (descanso < 12 && !yaRegistrado(registro)) {
+                descansosIncorrectos.push(registro);
               }
             }
           }
   
-          // Validar descansos entre días
+          // 2️⃣ Validar descansos entre días consecutivos
           if (d + 1 < semana.dias.length) {
             const diaManiana = semana.dias[d + 1];
             const fechaManiana = new Date(diaManiana.fecha);
   
             const asignacionesManiana = diaManiana.asignaciones.filter(
-              (a) => a.trabajador?.nombre === trabajador.nombre
+              (a) =>
+                a.trabajador?.nombre === trabajador.nombre &&
+                a.turno &&
+                !a.turno.toLowerCase().includes("no cobertura")
             );
   
             for (const asignacionHoy of asignacionesHoy) {
               const turnoHoy = turnos.find((t) => t.nombre === asignacionHoy.turno);
+              if (!turnoHoy) continue;
               const finHoyHora = turnoHoy.fin >= turnoHoy.inicio ? turnoHoy.fin : turnoHoy.fin + 24;
   
               const fechaFinHoy = new Date(fechaHoy);
@@ -431,7 +452,10 @@ const TurnoRotativos = () => {
   
               for (const asignacionManiana of asignacionesManiana) {
                 const turnoManiana = turnos.find((t) => t.nombre === asignacionManiana.turno);
-                const inicioManianaHora = turnoManiana.inicio >= turnoManiana.inicio ? turnoManiana.inicio : turnoManiana.inicio + 24;
+                if (!turnoManiana) continue;
+                const inicioManianaHora = turnoManiana.inicio >= turnoManiana.inicio
+                  ? turnoManiana.inicio
+                  : turnoManiana.inicio + 24;
   
                 const fechaInicioManiana = new Date(fechaManiana);
                 fechaInicioManiana.setHours(0, 0, 0, 0);
@@ -439,19 +463,21 @@ const TurnoRotativos = () => {
   
                 const descanso = (fechaInicioManiana - fechaFinHoy) / (1000 * 60 * 60);
   
-                if (descanso < 12) {
-                  descansosIncorrectos.push({
-                    trabajador: trabajador.nombre,
-                    diaActual: diaHoy.dia,
-                    fechaActual: diaHoy.fecha,
-                    turnoActual: asignacionHoy.turno,
-                    horarioActual: `${formatearHora(turnoHoy.inicio)}–${formatearHora(turnoHoy.fin)}`,
-                    diaSiguiente: diaManiana.dia,
-                    fechaSiguiente: diaManiana.fecha,
-                    turnoSiguiente: asignacionManiana.turno,
-                    horarioSiguiente: `${formatearHora(turnoManiana.inicio)}–${formatearHora(turnoManiana.fin)}`,
-                    descanso
-                  });
+                const registro = {
+                  trabajador: trabajador.nombre,
+                  diaActual: diaHoy.dia,
+                  fechaActual: diaHoy.fecha,
+                  turnoActual: asignacionHoy.turno,
+                  horarioActual: `${formatearHora(turnoHoy.inicio)}–${formatearHora(turnoHoy.fin)}`,
+                  diaSiguiente: diaManiana.dia,
+                  fechaSiguiente: diaManiana.fecha,
+                  turnoSiguiente: asignacionManiana.turno,
+                  horarioSiguiente: `${formatearHora(turnoManiana.inicio)}–${formatearHora(turnoManiana.fin)}`,
+                  descanso
+                };
+  
+                if (descanso < 12 && !yaRegistrado(registro)) {
+                  descansosIncorrectos.push(registro);
                 }
               }
             }
@@ -463,6 +489,52 @@ const TurnoRotativos = () => {
     return descansosIncorrectos;
   };
   
+  
+  
+
+
+  const validarDiasSeguidos = (datosTurnos) => {
+    const violaciones = [];
+
+    trabajadores.forEach((trabajador) => {
+      const diasTrabajados = [];
+
+      datosTurnos.forEach((semana) => {
+        semana.dias.forEach((dia) => {
+          const asignado = dia.asignaciones.some(
+            (a) => a.trabajador?.nombre === trabajador.nombre
+          );
+          if (asignado) {
+            diasTrabajados.push(dia.fecha);
+          }
+        });
+      });
+
+      const fechasOrdenadas = diasTrabajados.map(f => new Date(f)).sort((a, b) => a - b);
+
+      let contador = 1;
+      for (let i = 1; i < fechasOrdenadas.length; i++) {
+        const diff = (fechasOrdenadas[i] - fechasOrdenadas[i - 1]) / (1000 * 60 * 60 * 24);
+        if (diff === 1) {
+          contador++;
+          if (contador >= 7) {
+            violaciones.push({
+              trabajador: trabajador.nombre,
+              desde: fechasOrdenadas[i - 6].toISOString().split('T')[0],
+              hasta: fechasOrdenadas[i].toISOString().split('T')[0],
+              diasSeguidos: contador
+            });
+            break;
+          }
+        } else {
+          contador = 1;
+        }
+      }
+    });
+
+    return violaciones;
+  };
+  const [violacionesDiasSeguidos, setViolacionesDiasSeguidos] = useState([]);
 
 
 
@@ -527,7 +599,7 @@ const TurnoRotativos = () => {
 
     setDatosTurnos(nuevaData);
 
-    // 🔁 Forzar actualización de validaciones
+    //  Forzar actualización de validaciones
     setDescansosIncorrectos(validarDescansos(nuevaData));
     setDomingosTrabajados(contarDomingos(nuevaData));
   };
@@ -544,12 +616,16 @@ const TurnoRotativos = () => {
     const domingosContados = contarDomingos(datosTurnos);
     const cumpleDomingos = Object.values(domingosContados).every((dom) => (semanas - dom) >= 2);
 
+
     setCumpleHoras(cumpleH);
     setCumpleCantidadTrabajadores(cumpleCantidad);
     setCumpleDomingosLibres(cumpleDomingos);
+
+    const violaciones = validarDiasSeguidos(datosTurnos);
+    setViolacionesDiasSeguidos(violaciones);
   }, [datosTurnos, trabajadores, turnos, dias.length, horasEfectivasPorTurno, horasColacion, semanas]);
 
- 
+
 
 
   return (
@@ -701,7 +777,31 @@ const TurnoRotativos = () => {
               ✅ Todos los requisitos legales están cumplidos.
             </p>
           )}
-
+          {violacionesDiasSeguidos.length > 0 && (
+            <div className="alert">
+              <h3>🚨 Días seguidos sin descanso detectados:</h3>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Trabajador</th>
+                    <th>Desde</th>
+                    <th>Hasta</th>
+                    <th>Días seguidos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {violacionesDiasSeguidos.map((v, index) => (
+                    <tr key={index}>
+                      <td>{v.trabajador}</td>
+                      <td>{v.desde}</td>
+                      <td>{v.hasta}</td>
+                      <td>{v.diasSeguidos}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
 
         </div>
@@ -711,7 +811,10 @@ const TurnoRotativos = () => {
             <ul>
               {descansosIncorrectos.map((descanso, idx) => (
                 <li key={idx} style={{ color: 'red', marginBottom: '5px' }}>
-                  ⚠️ {descanso.trabajador} trabajó el {descanso.diaActual} {descanso.fechaActual} ({descanso.turnoActual} {descanso.horarioActual}) y luego el {descanso.diaSiguiente} {descanso.fechaSiguiente} ({descanso.turnoSiguiente} {descanso.horarioSiguiente}), con solo {descanso.descanso} horas de descanso (mínimo legal 12h).
+                  ⚠️ {descanso.trabajador} trabajó el {descanso.diaActual} {descanso.fechaActual}
+                  ({descanso.turnoActual} {descanso.horarioActual}) y luego el {descanso.diaSiguiente} {descanso.fechaSiguiente}
+                  ({descanso.turnoSiguiente} {descanso.horarioSiguiente}), con solo <strong>
+                    {Math.max(0, descanso.descanso.toFixed(1))}</strong> horas de descanso (mínimo legal 12h).
                 </li>
               ))}
             </ul>
@@ -793,7 +896,13 @@ const TurnoRotativos = () => {
                       {turnos.map((turno, index) => {
                         const asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
                         const nombreTrabajador = asignacion?.trabajador?.nombre;
-                        const esInfraccion = nombreTrabajador && tieneInfraccion(nombreTrabajador, diaData.dia, turno.nombre);
+                        const esInfraccion = nombreTrabajador && descansosIncorrectos.some((d) =>
+                          d.trabajador === nombreTrabajador &&
+                          (
+                            (d.fechaActual === diaData.fecha && d.turnoActual === turno.nombre) ||
+                            (d.fechaSiguiente === diaData.fecha && d.turnoSiguiente === turno.nombre)
+                          )
+                        );
 
                         return (
                           <td key={index} className={esInfraccion ? 'infraccion-turno' : ''}>
