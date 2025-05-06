@@ -177,113 +177,88 @@ const TurnoRotativos = () => {
     const resultado = [];
     const domingosContador = {};
     const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
-
-
-    // Inicializar contador de domingos
-    trabajadores.forEach((trabajador) => {
-      domingosContador[trabajador.nombre] = 0;
-    });
+  
+    // Inicializar contadores globales
     const horasTrabajadasPorTrabajador = {};
+    const horasAsignadas = {};
     trabajadores.forEach((t) => {
       horasTrabajadasPorTrabajador[t.nombre] = 0;
+      horasAsignadas[t.nombre] = 0;
+      domingosContador[t.nombre] = 0;
     });
-
-    let indiceRotacion = 0; // rotación global
-    const horasAsignadas = {};
+  
+    let indiceRotacion = 0;
+  
     for (let semana = 0; semana < semanas; semana++) {
       const semanaData = { semana: semana + 1, dias: [] };
       indiceRotacion = semana % trabajadores.length;
-
+  
+      // Inicializar contador semanal
+      const horasSemanaTrabajador = {};
+      trabajadores.forEach(t => {
+        horasSemanaTrabajador[t.nombre] = 0;
+      });
+  
       for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
         const fechaActual = new Date(fechaInicio);
         fechaActual.setDate(fechaInicio.getDate() + semana * 7 + diaIndex);
         const fechaISO = fechaActual.toISOString().split('T')[0];
         const diaNombre = dias[diaIndex];
         const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
-
+  
         for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
           const turnoSeleccionado = turnos[turnoIndex];
-
-          // Obtener lista circular rotada
+  
+          // Mantener rotación pero filtrar elegibles por semana
           const trabajadorOrdenado = [];
           for (let offset = 0; offset < trabajadores.length; offset++) {
             const index = (indiceRotacion + offset) % trabajadores.length;
             trabajadorOrdenado.push(trabajadores[index]);
           }
-
-
+  
           const trabajadorElegible = trabajadorOrdenado.find((trabajador) => {
-            console.log(' Evaluando trabajador:', {
-              nombre: trabajador.nombre,
-              horasDisponibles: trabajador.horasDisponibles,
-              horasAsignadas: horasAsignadas[trabajador.nombre],
-              domingosTrabajados: domingosContador[trabajador.nombre],
-              dia: diaNombre,
-              fecha: fechaISO,
-            });
-
-
             const yaAsignadoHoy = diaData.asignaciones.some(a => a.trabajador?.nombre === trabajador.nombre);
             if (yaAsignadoHoy) return false;
-
-            const puedeDomingo = !(diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2);
-            if (!puedeDomingo) return false;
-
-            const horasPendientes = trabajador.horasDisponibles - horasAsignadas[trabajador.nombre];
-            if (horasPendientes < duracionTurnoTotal) return false;
-
+  
+            if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return false;
+  
+            const horasPendientesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
+            if (horasPendientesSemana < duracionTurnoTotal) return false;
+  
             // Validar descanso de al menos 12 horas
             const fechaAnterior = new Date(fechaActual);
             fechaAnterior.setDate(fechaAnterior.getDate() - 1);
-            const fechaAnteriorISO = fechaAnterior.toISOString().split('T')[0];
             const fechaActualObj = new Date(fechaISO);
-
-
             const turnosAnteriores = resultado
               .flatMap(s => s.dias)
               .filter(d => {
                 const fechaD = new Date(d.fecha);
-                return fechaD <= fechaActualObj; //  solo días anteriores o el mismo
+                return fechaD <= fechaActualObj;
               })
-              .sort((a, b) => new Date(a.fecha) - new Date(b.fecha)) //  ordenar cronológicamente
-              .slice(-2) //  solo los últimos 2 días previos (opcional, para optimizar)
+              .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
+              .slice(-2)
               .flatMap(dia => dia.asignaciones.filter(
                 a => a.trabajador?.nombre === trabajador.nombre
-              ))
-
+              ));
+  
             for (let asign of turnosAnteriores) {
               const turnoAnterior = turnos.find(t => t.nombre === asign.turno);
-              const turnoActual = turnoSeleccionado;
-
-
-              const fechaFinAnterior = new Date(asign.fecha); // ← Asegúrate de tener 'fecha' en la asignación
+              const fechaFinAnterior = new Date(asign.fecha);
               fechaFinAnterior.setHours(turnoAnterior.fin, 0, 0, 0);
-
+  
               const fechaInicioActual = new Date(fechaISO);
-              fechaInicioActual.setHours(turnoActual.inicio, 0, 0, 0);
-
+              fechaInicioActual.setHours(turnoSeleccionado.inicio, 0, 0, 0);
               if (fechaInicioActual <= fechaFinAnterior) {
                 fechaInicioActual.setDate(fechaInicioActual.getDate() + 1);
               }
-
-
+  
               const horasDescanso = (fechaInicioActual - fechaFinAnterior) / (1000 * 60 * 60);
-              console.log('🔻 Descanso entre turnos:', {
-                trabajador: trabajador.nombre,
-                fechaTurnoAnterior: asign.fecha,
-                turnoAnterior: turnoAnterior.nombre,
-                finAnterior: formatearHora(turnoAnterior.fin),
-                turnoActual: turnoActual.nombre,
-                inicioActual: formatearHora(turnoActual.inicio),
-                horasDescanso
-              });
               if (horasDescanso < 12) return false;
             }
-
-
+  
             return true;
           });
-
+  
           if (trabajadorElegible) {
             diaData.asignaciones.push({
               turno: turnoSeleccionado.nombre,
@@ -291,48 +266,39 @@ const TurnoRotativos = () => {
               trabajador: trabajadorElegible,
               fecha: fechaISO
             });
-            console.log('✅ Asignado:', {
-              trabajador: trabajadorElegible.nombre,
-              fecha: fechaISO,
-              turno: turnoSeleccionado.nombre,
-              horasAcumuladas: horasAsignadas[trabajadorElegible.nombre],
-            });
+  
             horasTrabajadasPorTrabajador[trabajadorElegible.nombre] += duracionTurnoTotal;
-
+            horasSemanaTrabajador[trabajadorElegible.nombre] += duracionTurnoTotal;
+            horasAsignadas[trabajadorElegible.nombre] += duracionTurnoTotal;
+  
             if (diaNombre === "Domingo") {
               domingosContador[trabajadorElegible.nombre]++;
             }
-
-            horasAsignadas[trabajadorElegible.nombre] += duracionTurnoTotal;
-
+  
             indiceRotacion = (indiceRotacion + 1) % trabajadores.length;
+  
           } else {
             diaData.asignaciones.push({
               turno: turnoSeleccionado.nombre,
               horario: `${formatearHora(turnoSeleccionado.inicio)}–${formatearHora(turnoSeleccionado.fin)}`,
               trabajador: { nombre: '❌ No cobertura' },
               fecha: fechaISO
-
-            });
-            console.log('❌ No cobertura en:', {
-              fecha: fechaISO,
-              turno: turnoSeleccionado.nombre,
             });
           }
         }
-
+  
         semanaData.dias.push(diaData);
       }
-
+  
       resultado.push(semanaData);
     }
-
+  
     return {
       resultado,
       horasTrabajadasPorTrabajador
     };
   };
-
+  
 
 
 
