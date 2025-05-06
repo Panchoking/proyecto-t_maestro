@@ -54,23 +54,39 @@ const TurnoRotativos = () => {
     return `${hh}:${mm}`;
   }
 
-  const generarTurnosDinamicos = (inicio, fin, duracionTurno, solape = 0) => {
+  const generarTurnosDinamicos = (inicio, fin, duracionTurno, solape = 0, es247 = false) => {
     const turnos = [];
     let actual = inicio;
     let index = 1;
-
-    // Asegura que el límite sea al menos 24 si fin < inicio
-    const limite = fin > inicio ? fin : fin + 24;
-
-    while (actual < limite) {
-      const inicioTurno = actual;
+  
+    const limite = fin;
+  
+    while (true) {
+      let inicioTurno = actual;
       let finTurno = actual + duracionTurno;
-
-      // No cortar turno si es 24/7
-      /*if (finTurno > limite && horarioAbierto !== horarioCierre) {
-         finTurno = limite;
-       }*/
-
+  
+      // ⚠️ Detener si el turno comienza después del cierre
+      if (!es247 && inicioTurno >= limite) break;
+  
+      // ✅ Si el turno completo se pasa del cierre en modo NO 24/7...
+      if (!es247 && finTurno > limite) {
+        const nuevoInicio = limite - duracionTurno;
+  
+        // Verificar si el nuevo inicio sigue dentro del rango de apertura
+        if (nuevoInicio >= inicio) {
+          turnos.push({
+            nombre: `Turno ${index}`,
+            inicio: nuevoInicio,
+            fin: limite,
+            inicioVisual: formatearHora(nuevoInicio),
+            finVisual: formatearHora(limite),
+            cruzaDia: limite >= 24
+          });
+        }
+        break; // No seguir generando más turnos
+      }
+  
+      // ✅ Agregar turno normalmente
       turnos.push({
         nombre: `Turno ${index}`,
         inicio: inicioTurno,
@@ -79,37 +95,58 @@ const TurnoRotativos = () => {
         finVisual: formatearHora(finTurno),
         cruzaDia: finTurno >= 24
       });
-
+  
       actual += duracionTurno - solape;
-
       index++;
+  
+      // ⏹️ En modo 24/7, detener al completar 24 horas
+      if (es247 && actual >= inicio + 24) break;
     }
-
+  
     return turnos;
   };
-
-
+  
+  
+  
 
 
   const turnos = useMemo(() => {
-    let solape = 0;
-
+    // ⏱️ Cálculo total del turno (efectivo + colación)
     const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
-
-    if ((24 % duracionTurnoTotal) !== 0) {
-      solape = 1;
+  
+    // 🔍 Detectar si es 24/7 (ej: mismo valor apertura y cierre)
+    const es247 = ((horarioCierre - horarioAbierto + 24) % 24) === 0;
+  
+    // 🔁 Rango total disponible
+    const finReal = es247
+      ? horarioAbierto + 24
+      : (horarioCierre > horarioAbierto
+          ? horarioCierre
+          : horarioCierre + 24);
+  
+    const rangoDisponible = finReal - horarioAbierto;
+  
+    // ⚠️ Si el rango no alcanza ni para un turno, abortar
+    if (rangoDisponible < duracionTurnoTotal) {
+      alert("❗ El rango horario definido no permite ni un turno completo. Amplía el rango o reduce la duración.");
+      return [];
     }
-
-    if (horarioAbierto === horarioCierre) {
-      return generarTurnosDinamicos(horarioAbierto, horarioAbierto + 24, duracionTurnoTotal, solape);
+  
+    // 🧮 Calcular cuántos turnos caben en el rango
+    const maxTurnos = Math.floor(rangoDisponible / duracionTurnoTotal);
+  
+    // ✅ Si solo cabe uno, no hay solape
+    if (maxTurnos <= 1 || es247) {
+      return generarTurnosDinamicos(horarioAbierto, finReal, duracionTurnoTotal, 0, es247);
     }
-
-    const finReal = horarioCierre > horarioAbierto
-      ? horarioCierre
-      : horarioCierre + 24;
-
-    return generarTurnosDinamicos(horarioAbierto, finReal, duracionTurnoTotal, solape);
+  
+    // 🔧 Ajustar solape para encajar la mayor cantidad posible sin pasarse
+    const solapeCalculado = ((maxTurnos * duracionTurnoTotal) - rangoDisponible) / (maxTurnos - 1);
+  
+    return generarTurnosDinamicos(horarioAbierto, finReal, duracionTurnoTotal, solapeCalculado, es247);
+  
   }, [horarioAbierto, horarioCierre, horasEfectivasPorTurno, horasColacion]);
+  
 
 
 
