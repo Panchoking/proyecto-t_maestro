@@ -177,7 +177,7 @@ const TurnoRotativos = () => {
     const resultado = [];
     const domingosContador = {};
     const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
-  
+
     const horasTrabajadasPorTrabajador = {};
     const horasAsignadas = {};
     trabajadores.forEach((t) => {
@@ -185,47 +185,47 @@ const TurnoRotativos = () => {
       horasAsignadas[t.nombre] = 0;
       domingosContador[t.nombre] = 0;
     });
-  
+
     let indiceRotacionGlobal = 0; // 🔄 Rotación por turno
-  
+
     for (let semana = 0; semana < semanas; semana++) {
       const semanaData = { semana: semana + 1, dias: [] };
       const horasSemanaTrabajador = {};
       trabajadores.forEach(t => {
         horasSemanaTrabajador[t.nombre] = 0;
       });
-  
+
       for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
         const fechaActual = new Date(fechaInicio);
         fechaActual.setDate(fechaInicio.getDate() + semana * 7 + diaIndex);
         const fechaISO = fechaActual.toISOString().split('T')[0];
         const diaNombre = dias[diaIndex];
         const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
-  
+
         const base = trabajadores.slice(0, 4);
         const trabajadoresExtra = trabajadores.slice(4);
-  
+
         for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
           const turnoSeleccionado = turnos[turnoIndex];
-  
+
           // 🔁 Rotación por turno: cada turno se avanza 1 en la lista base
           const rotacion = base.map((_, i) => base[(indiceRotacionGlobal + i) % base.length]);
-  
+
           const validarElegibilidad = (trabajador) => {
             const yaAsignadoHoy = diaData.asignaciones.some(
               a => a.trabajadores.some(t => t.nombre === trabajador.nombre)
             );
             if (yaAsignadoHoy) return false;
-  
+
             if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return false;
-  
+
             const horasPendientesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
             if (horasPendientesSemana < duracionTurnoTotal) return false;
-  
+
             const fechaAnterior = new Date(fechaActual);
             fechaAnterior.setDate(fechaAnterior.getDate() - 1);
             const fechaActualObj = new Date(fechaISO);
-  
+
             const turnosAnteriores = resultado
               .flatMap(s => s.dias)
               .filter(d => new Date(d.fecha) <= fechaActualObj)
@@ -234,30 +234,30 @@ const TurnoRotativos = () => {
               .flatMap(dia => dia.asignaciones.filter(
                 a => a.trabajadores.some(t => t.nombre === trabajador.nombre)
               ));
-  
+
             for (let asign of turnosAnteriores) {
               const turnoAnterior = turnos.find(t => t.nombre === asign.turno);
               const fechaFinAnterior = new Date(asign.fecha);
               fechaFinAnterior.setHours(turnoAnterior.fin, 0, 0, 0);
-  
+
               const fechaInicioActual = new Date(fechaISO);
               fechaInicioActual.setHours(turnoSeleccionado.inicio, 0, 0, 0);
               if (fechaInicioActual <= fechaFinAnterior) {
                 fechaInicioActual.setDate(fechaInicioActual.getDate() + 1);
               }
-  
+
               const horasDescanso = (fechaInicioActual - fechaFinAnterior) / (1000 * 60 * 60);
               if (horasDescanso < 12) return false;
             }
-  
+
             return true;
           };
-  
+
           const elegibleBase = rotacion.find(validarElegibilidad);
           const elegibleExtra = trabajadoresExtra.find(validarElegibilidad);
-  
+
           let trabajadoresAsignados = [];
-  
+
           if (elegibleBase) {
             trabajadoresAsignados.push(elegibleBase);
             horasTrabajadasPorTrabajador[elegibleBase.nombre] += duracionTurnoTotal;
@@ -265,7 +265,7 @@ const TurnoRotativos = () => {
             horasAsignadas[elegibleBase.nombre] += duracionTurnoTotal;
             if (diaNombre === "Domingo") domingosContador[elegibleBase.nombre]++;
           }
-  
+
           if (elegibleExtra) {
             trabajadoresAsignados.push(elegibleExtra);
             horasTrabajadasPorTrabajador[elegibleExtra.nombre] += duracionTurnoTotal;
@@ -273,29 +273,29 @@ const TurnoRotativos = () => {
             horasAsignadas[elegibleExtra.nombre] += duracionTurnoTotal;
             if (diaNombre === "Domingo") domingosContador[elegibleExtra.nombre]++;
           }
-  
+
           diaData.asignaciones.push({
             turno: turnoSeleccionado.nombre,
             horario: `${formatearHora(turnoSeleccionado.inicio)}–${formatearHora(turnoSeleccionado.fin)}`,
             trabajadores: trabajadoresAsignados,
             fecha: fechaISO
           });
-  
+
           indiceRotacionGlobal++; // ⬅️ Avanzar después de cada turno
         }
-  
+
         semanaData.dias.push(diaData);
       }
-  
+
       resultado.push(semanaData);
     }
-  
+
     return {
       resultado,
       horasTrabajadasPorTrabajador
     };
   };
-  
+
 
   const rellenarNoCoberturaConExtras = (resultado, horasAsignadas, trabajadores, duracionTurnoTotal) => {
     for (let semana of resultado) {
@@ -674,9 +674,8 @@ const TurnoRotativos = () => {
   return (
     <div className="container">
       <div className="left-panel">
-        <h1 className="title">Parámetros</h1>
+        <h1 className="title">Parámetros Generales</h1>
 
-        {/* Agregar/Eliminar Trabajadores */}
         <div className="input-group">
           <input
             type="text"
@@ -690,7 +689,7 @@ const TurnoRotativos = () => {
             <option value="Parcial">Parcial (30h)</option>
             <option value="Flexible">Flexible (20h)</option>
           </select>
-          <button onClick={agregarTrabajador}>Agregar</button>
+          <button className="primary-button" onClick={agregarTrabajador}>Agregar</button>
         </div>
 
         {trabajadores.length > 0 && (
@@ -699,21 +698,17 @@ const TurnoRotativos = () => {
               {trabajadores.map((trabajador, index) => (
                 <li key={index}>
                   {trabajador.nombre} - {trabajador.tipoContrato} ({trabajador.horasDisponibles}h)
-                  <button onClick={() => eliminarTrabajador(index)} style={{ marginLeft: '10px', color: 'red' }}>
-                    Eliminar
-                  </button>
+                  <button className="delete-button" onClick={() => eliminarTrabajador(index)}>Eliminar</button>
                 </li>
               ))}
             </ul>
           </div>
         )}
 
-        {/* Parámetros Configurables */}
         <div className="input-group">
           <label>Horas efectivas por turno:</label>
           <input
             type="number"
-            step="any"
             value={horasEfectivasPorTurno}
             onChange={(e) => setHorasEfectivasPorTurno(Number(e.target.value))}
           />
@@ -723,21 +718,21 @@ const TurnoRotativos = () => {
           <label>Horas de colación:</label>
           <input
             type="number"
-            step="0.1"
             min="0.5"
+            step="0.1"
             value={horasColacion}
             onChange={(e) => {
               const value = Number(e.target.value);
               if (value >= 0.5) {
                 setHorasColacion(value);
               } else {
-                alert("La colación debe ser de al menos 0.5 horas (30 minutos)");
+                alert("La colación debe ser de al menos 0.5 horas.");
                 setHorasColacion(0.5);
               }
             }}
           />
-
         </div>
+
         <div className="input-group">
           <label>Fecha de inicio:</label>
           <input
@@ -747,41 +742,36 @@ const TurnoRotativos = () => {
           />
         </div>
 
-        <input
-          type="number"
-          min="0"
-          max="23"
-          value={horarioAbiertoInput}
-          onChange={(e) => setHorarioAbiertoInput(Number(e.target.value))}
-        />
-        <input
-          type="number"
-          min="0"
-          max="31"
-          value={horarioCierreInput}
-          onChange={(e) => setHorarioCierreInput(Number(e.target.value))}
-        />
-
-        <button
-          className="apply-button"
-          onClick={() => {
+        <div className="input-group">
+          <label>Horario de atención:</label>
+          <input
+            type="number"
+            min="0"
+            max="23"
+            value={horarioAbiertoInput}
+            onChange={(e) => setHorarioAbiertoInput(Number(e.target.value))}
+          />
+          <input
+            type="number"
+            min="0"
+            max="31"
+            value={horarioCierreInput}
+            onChange={(e) => setHorarioCierreInput(Number(e.target.value))}
+          />
+          <button className="primary-button" onClick={() => {
             setHorarioAbierto(horarioAbiertoInput);
             setHorarioCierre(horarioCierreInput);
-          }}
-        >
-          Aplicar horario de atención
-        </button>
+          }}>
+            Aplicar horario
+          </button>
+        </div>
+
         {turnos.length === 0 && (
-          <p style={{ color: 'red' }}>⚠️ El rango de horario no permite generar al menos un turno completo.</p>
+          <p className="alert">⚠️ El rango de horario no permite generar al menos un turno completo.</p>
         )}
 
+        <button onClick={exportarExcel} className="export-button">📥 Exportar Excel</button>
 
-
-
-
-        <button onClick={exportarExcel} className="export-button">Exportar Excel</button>
-
-        {/* Variables y Cumplimientos */}
         <div className="card">
           <h2>Variables Matemáticas</h2>
           <ul>
@@ -795,34 +785,15 @@ const TurnoRotativos = () => {
 
         <div className="card">
           <h2>Validaciones Legales</h2>
-          {!cumpleHoras && (
-            <p className="alert">
-              ⚠️ No se cumplen las horas mínimas de cobertura 24/7 (168h/semana). Art. 22 Código del Trabajo.
-            </p>
-          )}
-          {!cumpleDomingosLibres && (
-            <p className="alert">
-              ⚠️ No todos los trabajadores tienen 2 domingos libres. Art. 38 Código del Trabajo.
-            </p>
-          )}
-          {!cumpleCantidadTrabajadores && (
-            <p className="alert">
-              ⚠️ Insuficiencia de trabajadores para turnos rotativos 24/7. Se recomienda mínimo {trabajadoresMinimos} trabajadores.
-            </p>
-          )}
-          {trabajadores.length === 1 && (
-            <p className="alert">
-              ⚠️ Solo un trabajador asignado: no es legalmente viable cubrir todos los turnos 24/7.
-            </p>
-          )}
+          {!cumpleHoras && <p className="alert">⚠️ No se cumplen las horas mínimas.</p>}
+          {!cumpleDomingosLibres && <p className="alert">⚠️ No todos los trabajadores tienen 2 domingos libres.</p>}
+          {!cumpleCantidadTrabajadores && <p className="alert">⚠️ Se recomienda mínimo {trabajadoresMinimos} trabajadores.</p>}
           {cumpleHoras && cumpleDomingosLibres && cumpleCantidadTrabajadores && trabajadores.length > 1 && (
-            <p className="success">
-              ✅ Todos los requisitos legales están cumplidos.
-            </p>
+            <p className="success">✅ Todos los requisitos legales están cumplidos.</p>
           )}
           {violacionesDiasSeguidos.length > 0 && (
             <div className="alert">
-              <h3>🚨 Días seguidos sin descanso detectados:</h3>
+              <h3>Días seguidos sin descanso:</h3>
               <table>
                 <thead>
                   <tr>
@@ -845,33 +816,32 @@ const TurnoRotativos = () => {
               </table>
             </div>
           )}
-
-
         </div>
+
         {descansosIncorrectos.length > 0 && (
-          <>
+          <div className="card">
             <h3>Violaciones de descanso entre turnos:</h3>
             <ul>
               {descansosIncorrectos.map((descanso, idx) => (
-                <li key={idx} style={{ color: 'red', marginBottom: '5px' }}>
+                <li key={idx} className="alert">
                   ⚠️ {descanso.trabajador} trabajó el {descanso.diaActual} {descanso.fechaActual}
                   ({descanso.turnoActual} {descanso.horarioActual}) y luego el {descanso.diaSiguiente} {descanso.fechaSiguiente}
                   ({descanso.turnoSiguiente} {descanso.horarioSiguiente}), con solo <strong>
-                    {Math.max(0, descanso.descanso.toFixed(1))}</strong> horas de descanso (mínimo legal 12h).
+                    {Math.max(0, descanso.descanso.toFixed(1))}</strong> horas de descanso.
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         )}
 
         <div className="card">
           <h2>Domingos Libres</h2>
           <ul>
             {Object.entries(domingosTrabajados).map(([nombre, domingos]) => {
-              const domingosLibres = semanas - domingos;
+              const libres = semanas - domingos;
               return (
                 <li key={nombre}>
-                  {nombre}: {domingosLibres} domingos libres {domingosLibres >= 2 ? "✅" : "⚠️"}
+                  {nombre}: {libres} domingos libres {libres >= 2 ? "✅" : "⚠️"}
                 </li>
               );
             })}
@@ -879,36 +849,27 @@ const TurnoRotativos = () => {
           <h3>Horas trabajadas</h3>
           <ul>
             {Object.entries(horasTrabajadasPorTrabajador).map(([nombre, horas]) => (
-              <li key={nombre}>
-                {nombre}: {horas} horas
-              </li>
+              <li key={nombre}>{nombre}: {horas} horas</li>
             ))}
           </ul>
         </div>
+
         <div className="input-group">
-          <label>
-            Día de inicio de semana:
-            <select value={inicioSemana} onChange={(e) => setInicioSemana(e.target.value)}>
-              {diasSemana.map((dia) => (
-                <option key={dia} value={dia}>{dia}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Días de funcionamiento:
-            <input
-              type="number"
-              min="1"
-              max="7"
-              value={diasFuncionamiento}
-              onChange={(e) => setDiasFuncionamiento(Number(e.target.value))}
-            />
-
-          </label>
-
+          <label>Día de inicio de semana:</label>
+          <select value={inicioSemana} onChange={(e) => setInicioSemana(e.target.value)}>
+            {diasSemana.map((dia) => (
+              <option key={dia} value={dia}>{dia}</option>
+            ))}
+          </select>
+          <label>Días de funcionamiento:</label>
+          <input
+            type="number"
+            min="1"
+            max="7"
+            value={diasFuncionamiento}
+            onChange={(e) => setDiasFuncionamiento(Number(e.target.value))}
+          />
         </div>
-
       </div>
 
 
@@ -941,7 +902,6 @@ const TurnoRotativos = () => {
                         const trabajadoresAsignados = asignacion?.trabajadores || [];
                         const nombresTrabajadores = trabajadoresAsignados.map(t => t.nombre).join(", ");
 
-                        // Verifica si alguno de los trabajadores tiene infracción
                         const esInfraccion = trabajadoresAsignados.some((t) =>
                           descansosIncorrectos.some((d) =>
                             d.trabajador === t.nombre &&
@@ -976,29 +936,20 @@ const TurnoRotativos = () => {
                               {nombresTrabajadores}
                             </div>
 
-                            {/* Mostrar los nombres de todos los asignados */}
-                            {trabajadoresAsignados.length > 1 && (
-                              <div style={{ marginTop: '4px', fontSize: '0.85em' }}>
-                                + {trabajadoresAsignados.slice(1).map(t => t.nombre).join(", ")}
-                              </div>
-                            )}
-
                             <br />
-                            <small>
-                              {turno.nombre} ({formatearHora(turno.inicio)}–{formatearHora(turno.fin)})
-                            </small>
+                            <small>{turno.nombre} ({formatearHora(turno.inicio)}–{formatearHora(turno.fin)})</small>
                           </td>
                         );
                       })}
                     </tr>
                   ))}
                 </tbody>
-
               </table>
             </div>
           </div>
         ))}
       </div>
+
 
     </div>
   );
