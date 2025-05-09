@@ -7,6 +7,8 @@ const TurnoRotativos = () => {
   const [trabajadores, setTrabajadores] = useState([]);
   const [nuevoTrabajador, setNuevoTrabajador] = useState('');
   const [tipoContrato, setTipoContrato] = useState('Completo');
+  const [horasContrato, setHorasContrato] = useState(45); // valor por defecto
+  const [t, setT] = useState(0.5);
   const [semanas, setSemanas] = useState(4);
   const [fechaInicio, setFechaInicio] = useState(() => {
     const hoy = new Date();
@@ -45,14 +47,16 @@ const TurnoRotativos = () => {
   };
 
   function formatearHora(decimal) {
-    const horas = Math.floor(decimal % 24);
-    const minutos = Math.round((decimal % 1) * 60);
-
+    const totalMinutos = Math.round(decimal * 60); // redondea correctamente
+    const horas = Math.floor(totalMinutos / 60);
+    const minutos = totalMinutos % 60;
+  
     const hh = horas.toString().padStart(2, '0');
     const mm = minutos.toString().padStart(2, '0');
-
+  
     return `${hh}:${mm}`;
   }
+
 
   const generarTurnosDinamicos = (inicio, fin, duracionTurno, solape = 0, es247 = false) => {
     const turnos = [];
@@ -153,31 +157,105 @@ const TurnoRotativos = () => {
 
 
   const agregarTrabajador = () => {
-    if (nuevoTrabajador.trim() !== '') {
-      let horas = 45;
-      if (tipoContrato === 'Parcial') horas = 30;
-      if (tipoContrato === 'Flexible') horas = 20;
-
+    if (nuevoTrabajador.trim() !== '' && horasContrato > 0) {
       setTrabajadores([...trabajadores, {
         nombre: nuevoTrabajador.trim(),
         tipoContrato,
-        horasDisponibles: horas
+        horasDisponibles: horasContrato
       }]);
       setNuevoTrabajador('');
+      setHorasContrato(45); // resetea al valor por defecto
     }
   };
 
+
+
   const eliminarTrabajador = (index) => {
-    const nuevos = [...trabajadores];
-    nuevos.splice(index, 1);
-    setTrabajadores(nuevos);
+    const nuevosTrabajadores = [...trabajadores];
+    nuevosTrabajadores.splice(index, 1);
+    setTrabajadores(nuevosTrabajadores);
   };
+
+
+  // nueva formula para distribucion de turnos
+
+  function calcularDistribucionTurnos(H, D, t, horarioAbierto) {
+    if (D > 6) D = 6;
+  
+    const p = H / D;
+    const m = Math.round(p / t) * t;
+  
+    if (m % t !== 0) {
+      throw new Error("❌ m no es múltiplo exacto de t");
+    }
+  
+    const Dch = Math.abs(H - (m * D)) / t;
+  
+    if (!Number.isInteger(Dch)) {
+      throw new Error("❌ Días chicos no puede ser fraccionario");
+    }
+  
+    const Dl = D - Dch;
+    const TL = m * Dl;
+    const Tch = (H - TL) / Dch;
+  
+    const totalCalculado = Dl * m + Dch * Tch;
+    if (Math.abs(H - totalCalculado) > 0.01) {
+      throw new Error(`❌ H ≠ Dl×m + Dch×Tch (${H} vs ${totalCalculado.toFixed(2)})`);
+    }
+  
+    // Generar listas
+    const jornadas = [];
+    const entradas = [];
+    const salidas = [];
+    const clasificacion = [];
+  
+    for (let i = 0; i < D; i++) {
+      let tipo = "libre";
+      let Ji = 0;
+  
+      if (i < Dl) {
+        tipo = "largo";
+        Ji = m;
+      } else if (i < Dl + Dch) {
+        tipo = "chico";
+        Ji = Tch;
+      }
+  
+      const entrada = horarioAbierto;
+      const salida = parseFloat((entrada + Ji).toFixed(2));
+  
+      jornadas.push(Ji);
+      entradas.push(entrada);
+      salidas.push(salida);
+      clasificacion.push(tipo);
+    }
+  
+    return {
+      H,
+      D,
+      t,
+      p: parseFloat(p.toFixed(2)),
+      m: parseFloat(m.toFixed(2)),
+      Dch,
+      Dl,
+      Tch: parseFloat(Tch.toFixed(2)),
+      J_l: parseFloat(m.toFixed(2)),
+      J_ch: parseFloat(Tch.toFixed(2)),
+      jornadas,
+      entradas,
+      salidas,
+      clasificacion
+    };
+  }
+  
+  
+  
 
   const generarTurnos = () => {
     const resultado = [];
     const domingosContador = {};
-    const duracionTurnoTotal = horasEfectivasPorTurno + horasColacion;
-
+  
     const horasTrabajadasPorTrabajador = {};
     const horasAsignadas = {};
     trabajadores.forEach((t) => {
@@ -185,47 +263,98 @@ const TurnoRotativos = () => {
       horasAsignadas[t.nombre] = 0;
       domingosContador[t.nombre] = 0;
     });
-
-    let indiceRotacionGlobal = 0; // 🔄 Rotación por turno
-
+  
+    const distribuciones = {};
+    trabajadores.forEach((trabajador) => {
+      try {
+        const dist = calcularDistribucionTurnos(
+          trabajador.horasDisponibles,
+          diasFuncionamiento,
+          t,
+          horarioAbierto
+        );
+  
+        // Crear listas por día
+        const clasificacion = [];
+        const jornadas = [];
+        const entradas = [];
+        const salidas = [];
+  
+        for (let i = 0; i < dias.length; i++) {
+          let tipo = "libre";
+          let Ji = 0;
+  
+          if (i < dist.Dl) {
+            tipo = "largo";
+            Ji = dist.m;
+          } else if (i < dist.Dl + dist.Dch) {
+            tipo = "chico";
+            Ji = dist.Tch;
+          }
+  
+          clasificacion.push(tipo);
+          jornadas.push(Ji);
+          entradas.push(horarioAbierto);
+          salidas.push(horarioAbierto + Ji + horasColacion);
+        }
+  
+        distribuciones[trabajador.nombre] = {
+          ...dist,
+          clasificacion,
+          jornadas,
+          entradas,
+          salidas
+        };
+  
+      } catch (e) {
+        console.warn(`Distribución inválida para ${trabajador.nombre}:`, e.message);
+      }
+    });
+  
+    let indiceRotacionGlobal = 0;
+  
     for (let semana = 0; semana < semanas; semana++) {
       const semanaData = { semana: semana + 1, dias: [] };
       const horasSemanaTrabajador = {};
       trabajadores.forEach(t => {
         horasSemanaTrabajador[t.nombre] = 0;
       });
-
+  
       for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
         const fechaActual = new Date(fechaInicio);
         fechaActual.setDate(fechaInicio.getDate() + semana * 7 + diaIndex);
         const fechaISO = fechaActual.toISOString().split('T')[0];
         const diaNombre = dias[diaIndex];
         const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
-
+  
         const base = trabajadores.slice(0, 4);
         const trabajadoresExtra = trabajadores.slice(4);
-
+  
         for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
           const turnoSeleccionado = turnos[turnoIndex];
-
-          // 🔁 Rotación por turno: cada turno se avanza 1 en la lista base
           const rotacion = base.map((_, i) => base[(indiceRotacionGlobal + i) % base.length]);
-
+  
           const validarElegibilidad = (trabajador) => {
+            const dist = distribuciones[trabajador.nombre];
+            if (!dist) return false;
+  
+            const Ji = dist.jornadas[diaIndex];
+            if (Ji === 0) return false;
+  
             const yaAsignadoHoy = diaData.asignaciones.some(
               a => a.trabajadores.some(t => t.nombre === trabajador.nombre)
             );
             if (yaAsignadoHoy) return false;
-
             if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return false;
-
-            const horasPendientesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
-            if (horasPendientesSemana < duracionTurnoTotal) return false;
-
+  
+            const horasRestantesTotales = trabajador.horasDisponibles - horasAsignadas[trabajador.nombre];
+            if (horasRestantesTotales < Ji) return false;
+  
+            // Validar descanso con días anteriores
             const fechaAnterior = new Date(fechaActual);
             fechaAnterior.setDate(fechaAnterior.getDate() - 1);
             const fechaActualObj = new Date(fechaISO);
-
+  
             const turnosAnteriores = resultado
               .flatMap(s => s.dias)
               .filter(d => new Date(d.fecha) <= fechaActualObj)
@@ -234,67 +363,77 @@ const TurnoRotativos = () => {
               .flatMap(dia => dia.asignaciones.filter(
                 a => a.trabajadores.some(t => t.nombre === trabajador.nombre)
               ));
-
+  
             for (let asign of turnosAnteriores) {
               const turnoAnterior = turnos.find(t => t.nombre === asign.turno);
               const fechaFinAnterior = new Date(asign.fecha);
-              fechaFinAnterior.setHours(turnoAnterior.fin, 0, 0, 0);
-
+              fechaFinAnterior.setHours(turnoAnterior?.fin || 0, 0, 0, 0);
+  
+              const Ei = dist.entradas[diaIndex];
               const fechaInicioActual = new Date(fechaISO);
-              fechaInicioActual.setHours(turnoSeleccionado.inicio, 0, 0, 0);
+              fechaInicioActual.setHours(Math.floor(Ei), (Ei % 1) * 60);
+  
               if (fechaInicioActual <= fechaFinAnterior) {
                 fechaInicioActual.setDate(fechaInicioActual.getDate() + 1);
               }
-
+  
               const horasDescanso = (fechaInicioActual - fechaFinAnterior) / (1000 * 60 * 60);
               if (horasDescanso < 12) return false;
             }
-
+  
             return true;
           };
-
+  
           const elegibleBase = rotacion.find(validarElegibilidad);
           const elegibleExtra = trabajadoresExtra.find(validarElegibilidad);
-
-          let trabajadoresAsignados = [];
-
-          if (elegibleBase) {
-            trabajadoresAsignados.push(elegibleBase);
-            horasTrabajadasPorTrabajador[elegibleBase.nombre] += duracionTurnoTotal;
-            horasSemanaTrabajador[elegibleBase.nombre] += duracionTurnoTotal;
-            horasAsignadas[elegibleBase.nombre] += duracionTurnoTotal;
-            if (diaNombre === "Domingo") domingosContador[elegibleBase.nombre]++;
-          }
-
-          if (elegibleExtra) {
-            trabajadoresAsignados.push(elegibleExtra);
-            horasTrabajadasPorTrabajador[elegibleExtra.nombre] += duracionTurnoTotal;
-            horasSemanaTrabajador[elegibleExtra.nombre] += duracionTurnoTotal;
-            horasAsignadas[elegibleExtra.nombre] += duracionTurnoTotal;
-            if (diaNombre === "Domingo") domingosContador[elegibleExtra.nombre]++;
-          }
-
-          diaData.asignaciones.push({
-            turno: turnoSeleccionado.nombre,
-            horario: `${formatearHora(turnoSeleccionado.inicio)}–${formatearHora(turnoSeleccionado.fin)}`,
-            trabajadores: trabajadoresAsignados,
-            fecha: fechaISO
-          });
-
-          indiceRotacionGlobal++; // ⬅️ Avanzar después de cada turno
+  
+          const asignarTurno = (trabajadorElegido) => {
+            const dist = distribuciones[trabajadorElegido.nombre];
+            if (!dist) return;
+  
+            const Ji = dist.jornadas[diaIndex];
+            const Ei = dist.entradas[diaIndex];
+            const Si = dist.salidas[diaIndex];
+            const tipoTurno = dist.clasificacion[diaIndex];
+  
+            horasTrabajadasPorTrabajador[trabajadorElegido.nombre] += Ji;
+            horasSemanaTrabajador[trabajadorElegido.nombre] += Ji;
+            horasAsignadas[trabajadorElegido.nombre] += Ji;
+            if (diaNombre === "Domingo") domingosContador[trabajadorElegido.nombre]++;
+  
+            diaData.asignaciones.push({
+              turno: turnoSeleccionado.nombre,
+              horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
+              trabajadores: [trabajadorElegido],
+              tipo: tipoTurno,
+              duracion: Ji,
+              fecha: fechaISO
+            });
+  
+            console.log(`[${trabajadorElegido.nombre}] Día: ${diaNombre}, Tipo: ${tipoTurno}, Horas: ${Ji}`);
+          };
+  
+          if (elegibleBase) asignarTurno(elegibleBase);
+          else if (elegibleExtra) asignarTurno(elegibleExtra);
+  
+          indiceRotacionGlobal++;
         }
-
+  
         semanaData.dias.push(diaData);
       }
-
+  
       resultado.push(semanaData);
     }
-
+  
     return {
       resultado,
       horasTrabajadasPorTrabajador
     };
   };
+  
+  
+  
+
 
 
   const rellenarNoCoberturaConExtras = (resultado, horasAsignadas, trabajadores, duracionTurnoTotal) => {
@@ -342,8 +481,8 @@ const TurnoRotativos = () => {
     const postProcesado = rellenarNoCoberturaConExtras(resultado, horasTrabajadasPorTrabajador, trabajadores, duracionTurnoTotal);
     setDatosTurnos(postProcesado.resultado);
     setHorasTrabajadas(postProcesado.horasAsignadas);
-    setDatosTurnos(resultado);
-    setHorasTrabajadas(horasTrabajadasPorTrabajador);
+    //setDatosTurnos(resultado);
+    //setHorasTrabajadas(horasTrabajadasPorTrabajador);
     setDescansosIncorrectos(validarDescansos(resultado));
     setDomingosTrabajados(contarDomingos(resultado));
 
@@ -690,6 +829,13 @@ const TurnoRotativos = () => {
             <option value="Flexible">Flexible (20h)</option>
           </select>
           <button className="primary-button" onClick={agregarTrabajador}>Agregar</button>
+          <input
+            type="number"
+            min="1"
+            placeholder="Horas semanales"
+            value={horasContrato}
+            onChange={(e) => setHorasContrato(Number(e.target.value))}
+          />
         </div>
 
         {trabajadores.length > 0 && (
@@ -718,7 +864,7 @@ const TurnoRotativos = () => {
           <label>Horas de colación:</label>
           <input
             type="number"
-            min="0.5"
+           //min="0.5"
             step="0.1"
             value={horasColacion}
             onChange={(e) => {
@@ -746,15 +892,13 @@ const TurnoRotativos = () => {
           <label>Horario de atención:</label>
           <input
             type="number"
-            min="0"
-            max="23"
+            step="0.1"
             value={horarioAbiertoInput}
             onChange={(e) => setHorarioAbiertoInput(Number(e.target.value))}
           />
           <input
             type="number"
-            min="0"
-            max="31"
+            step="0.1"
             value={horarioCierreInput}
             onChange={(e) => setHorarioCierreInput(Number(e.target.value))}
           />
@@ -870,6 +1014,17 @@ const TurnoRotativos = () => {
             onChange={(e) => setDiasFuncionamiento(Number(e.target.value))}
           />
         </div>
+        <div className="input-group">
+          <label>Bloque mínimo (t):</label>
+          <input
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={t}
+            onChange={(e) => setT(Number(e.target.value))}
+          />
+        </div>
+
       </div>
 
 
@@ -937,7 +1092,8 @@ const TurnoRotativos = () => {
                             </div>
 
                             <br />
-                            <small>{turno.nombre} ({formatearHora(turno.inicio)}–{formatearHora(turno.fin)})</small>
+                            <small>{asignacion?.horario || `${formatearHora(turno.inicio)}–${formatearHora(turno.fin)}`}</small>
+
                           </td>
                         );
                       })}
