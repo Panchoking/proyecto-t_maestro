@@ -405,17 +405,17 @@ const TurnoRotativos = () => {
           const asignarTurno = (trabajadorElegido) => {
             const dist = distribuciones[trabajadorElegido.nombre];
             if (!dist) return;
-            const tipoTurno = turnosDelDia[turnoIndex]; // Asigna tipo según turnoIndex
-            const Ji = tipoTurno === "largo" ? dist.J_l : dist.J_ch;
-            const Ei = horarioAbierto;
-            const Si = Ei + Ji + horasColacion;
-            
-
+          
+            const Ji = dist.jornadas[diaIndex];           // Usa su propia jornada
+            const Ei = dist.entradas[diaIndex];           // Usa su propia entrada
+            const Si = dist.salidas[diaIndex];            // Usa su propia salida
+            const tipoTurno = dist.clasificacion[diaIndex]; // Usa su tipo real (largo/chico)
+          
             horasTrabajadasPorTrabajador[trabajadorElegido.nombre] += Ji;
             horasSemanaTrabajador[trabajadorElegido.nombre] += Ji;
             horasAsignadas[trabajadorElegido.nombre] += Ji;
             if (diaNombre === "Domingo") domingosContador[trabajadorElegido.nombre]++;
-
+          
             diaData.asignaciones.push({
               turno: turnoSeleccionado.nombre,
               horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
@@ -424,9 +424,10 @@ const TurnoRotativos = () => {
               duracion: Ji,
               fecha: fechaISO
             });
-
-            console.log(`[${trabajadorElegido.nombre}] Día: ${diaNombre}, Tipo: ${tipoTurno}, Horas: ${Ji}`);
+          
+            console.log(`[${trabajadorElegido.nombre}] Día: ${diaNombre}, Turno: ${turnoSeleccionado.nombre}, Tipo: ${tipoTurno}, Horas: ${Ji}`);
           };
+          
 
           if (elegibleBase) asignarTurno(elegibleBase);
           else if (elegibleExtra) asignarTurno(elegibleExtra);
