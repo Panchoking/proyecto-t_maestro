@@ -317,8 +317,10 @@ const TurnoRotativos = () => {
 
     for (let semana = 0; semana < semanas; semana++) {
 
-      const horasTrabajadasPorTrabajador = {};
-      const horasAsignadas = {};
+      trabajadores.forEach((t) => {
+        if (!(t.nombre in horasTrabajadasPorTrabajador)) horasTrabajadasPorTrabajador[t.nombre] = 0;
+        if (!(t.nombre in horasAsignadas)) horasAsignadas[t.nombre] = 0;
+      });
       const semanaData = { semana: semana + 1, dias: [] };
       const horasSemanaTrabajador = {};
       trabajadores.forEach(t => {
@@ -366,10 +368,10 @@ const TurnoRotativos = () => {
             );
             if (yaAsignadoHoy) return false;
             if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return false;
-
-            const horasRestantesTotales = trabajador.horasDisponibles - horasAsignadas[trabajador.nombre];
-            if (horasRestantesTotales < Ji) return false;
-
+            
+            const horasRestantesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
+            if (horasRestantesSemana < Ji) return false;
+            
             // Validar descanso con días anteriores
             const fechaAnterior = new Date(fechaActual);
             fechaAnterior.setDate(fechaAnterior.getDate() - 1);
