@@ -316,7 +316,7 @@ const TurnoRotativos = () => {
     let indiceRotacionGlobal = 0;
 
     for (let semana = 0; semana < semanas; semana++) {
-      
+
       const horasTrabajadasPorTrabajador = {};
       const horasAsignadas = {};
       const semanaData = { semana: semana + 1, dias: [] };
@@ -332,7 +332,8 @@ const TurnoRotativos = () => {
         const diaNombre = dias[diaIndex];
         const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
 
-        const base = trabajadores.slice(0, 4);
+        const base = [...trabajadores.slice(0, 4)];
+        const rotacionCircular = base.map((_, i) => base[(i + semana) % base.length]);
         const trabajadoresExtra = trabajadores.slice(4);
 
         const tipoDia = trabajadores[0]
@@ -349,7 +350,7 @@ const TurnoRotativos = () => {
 
         for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
           const turnoSeleccionado = turnos[turnoIndex];
-          const rotacion = [...base];
+          const rotacion = [...rotacionCircular];
 
 
 
