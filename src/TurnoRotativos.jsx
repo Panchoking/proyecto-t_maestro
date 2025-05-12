@@ -368,10 +368,10 @@ const TurnoRotativos = () => {
             );
             if (yaAsignadoHoy) return false;
             if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return false;
-            
+
             const horasRestantesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
             if (horasRestantesSemana < Ji) return false;
-            
+
             // Validar descanso con días anteriores
             const fechaAnterior = new Date(fechaActual);
             fechaAnterior.setDate(fechaAnterior.getDate() - 1);
@@ -923,26 +923,91 @@ const TurnoRotativos = () => {
         </div>
 
         <div className="input-group">
-          <label>Horario de atención:</label>
-          <input
-            type="number"
-            step="0.1"
-            value={horarioAbiertoInput}
-            onChange={(e) => setHorarioAbiertoInput(Number(e.target.value))}
-          />
-          <input
-            type="number"
-            step="0.1"
-            value={horarioCierreInput}
-            onChange={(e) => setHorarioCierreInput(Number(e.target.value))}
-          />
-          <button className="primary-button" onClick={() => {
-            setHorarioAbierto(horarioAbiertoInput);
-            setHorarioCierre(horarioCierreInput);
-          }}>
+          <label style={{ fontWeight: 'bold' }}>Horario de Atención:</label>
+
+          {/* Desde */}
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '12px' }}>
+            <div style={{ textAlign: 'center', marginRight: '10px' }}>
+              <div>Horas</div>
+              <input
+                type="number"
+                min="0"
+                max="23"
+                value={Math.floor(horarioAbiertoInput)}
+                onChange={(e) => {
+                  const horas = Number(e.target.value);
+                  setHorarioAbiertoInput((prev) => horas + (prev % 1));
+                }}
+                style={{ width: '60px', textAlign: 'center', padding: '6px' }}
+              />
+            </div>
+
+            <div style={{ fontSize: '24px', margin: '0 5px' }}>:</div>
+
+            <div style={{ textAlign: 'center' }}>
+              <div>Minutos</div>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                value={Math.round((horarioAbiertoInput % 1) * 60)}
+                onChange={(e) => {
+                  const minutos = Number(e.target.value);
+                  setHorarioAbiertoInput((prev) => Math.floor(prev) + minutos / 60);
+                }}
+                style={{ width: '60px', textAlign: 'center', padding: '6px' }}
+              />
+            </div>
+          </div>
+
+          {/* Hasta */}
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <div style={{ textAlign: 'center', marginRight: '10px' }}>
+              <div>Horas</div>
+              <input
+                type="number"
+                min="0"
+                max="31"
+                value={Math.floor(horarioCierreInput)}
+                onChange={(e) => {
+                  const horas = Number(e.target.value);
+                  setHorarioCierreInput((prev) => horas + (prev % 1));
+                }}
+                style={{ width: '60px', textAlign: 'center', padding: '6px' }}
+              />
+            </div>
+
+            <div style={{ fontSize: '24px', margin: '0 5px' }}>:</div>
+
+            <div style={{ textAlign: 'center' }}>
+              <div>Minutos</div>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                value={Math.round((horarioCierreInput % 1) * 60)}
+                onChange={(e) => {
+                  const minutos = Number(e.target.value);
+                  setHorarioCierreInput((prev) => Math.floor(prev) + minutos / 60);
+                }}
+                style={{ width: '60px', textAlign: 'center', padding: '6px' }}
+              />
+            </div>
+          </div>
+
+          <button
+            className="primary-button"
+            style={{ marginTop: '12px' }}
+            onClick={() => {
+              setHorarioAbierto(horarioAbiertoInput);
+              setHorarioCierre(horarioCierreInput);
+            }}
+          >
             Aplicar horario
           </button>
         </div>
+
+
 
         {turnos.length === 0 && (
           <p className="alert">⚠️ El rango de horario no permite generar al menos un turno completo.</p>
