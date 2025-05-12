@@ -47,16 +47,15 @@ const TurnoRotativos = () => {
   };
 
   function formatearHora(decimal) {
-    const totalMinutos = Math.round(decimal * 60); // redondea correctamente
-    const horas = Math.floor(totalMinutos / 60);
-    const minutos = totalMinutos % 60;
-
+    const horas = Math.floor(decimal % 24); // 💡 resetea cada 24 horas
+    const minutos = Math.round((decimal % 1) * 60);
+  
     const hh = horas.toString().padStart(2, '0');
     const mm = minutos.toString().padStart(2, '0');
-
+  
     return `${hh}:${mm}`;
   }
-
+  
 
   const generarTurnosDinamicos = (inicio, fin, duracionTurno, solape = 0, es247 = false) => {
     const turnos = [];
