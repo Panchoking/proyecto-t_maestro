@@ -316,6 +316,9 @@ const TurnoRotativos = () => {
     let indiceRotacionGlobal = 0;
 
     for (let semana = 0; semana < semanas; semana++) {
+      
+      const horasTrabajadasPorTrabajador = {};
+      const horasAsignadas = {};
       const semanaData = { semana: semana + 1, dias: [] };
       const horasSemanaTrabajador = {};
       trabajadores.forEach(t => {
