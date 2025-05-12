@@ -258,6 +258,7 @@ const TurnoRotativos = () => {
 
     const horasTrabajadasPorTrabajador = {};
     const horasAsignadas = {};
+    const horarioCierre = parseFloat(horarioCierreInput);
     trabajadores.forEach((t) => {
       horasTrabajadasPorTrabajador[t.nombre] = 0;
       horasAsignadas[t.nombre] = 0;
@@ -402,20 +403,30 @@ const TurnoRotativos = () => {
           const elegibleBase = rotacion.find(validarElegibilidad);
           const elegibleExtra = trabajadoresExtra.find(validarElegibilidad);
 
-          const asignarTurno = (trabajadorElegido) => {
+          const asignarTurno = (trabajadorElegido, turnoIndex) => {
             const dist = distribuciones[trabajadorElegido.nombre];
             if (!dist) return;
-          
-            const Ji = dist.jornadas[diaIndex];           // Usa su propia jornada
-            const Ei = dist.entradas[diaIndex];           // Usa su propia entrada
-            const Si = dist.salidas[diaIndex];            // Usa su propia salida
-            const tipoTurno = dist.clasificacion[diaIndex]; // Usa su tipo real (largo/chico)
-          
+
+            const indexTrabajador = trabajadores.findIndex(t => t.nombre === trabajadorElegido.nombre);
+            const invertir = indexTrabajador % 2 === 1; // 1, 3, 5... invertidos
+
+            const indexReal = diaIndex;
+
+            const tipoTurno = dist.clasificacion[indexReal];
+            const Ji = dist.jornadas[indexReal];
+
+            let Ei = horarioAbierto;
+            if (invertir) {
+              Ei = Math.max(horarioAbierto, horarioCierre - Ji - horasColacion);  // Inversión calculada
+            }
+
+            const Si = Ei + Ji + horasColacion;
+
             horasTrabajadasPorTrabajador[trabajadorElegido.nombre] += Ji;
             horasSemanaTrabajador[trabajadorElegido.nombre] += Ji;
             horasAsignadas[trabajadorElegido.nombre] += Ji;
             if (diaNombre === "Domingo") domingosContador[trabajadorElegido.nombre]++;
-          
+
             diaData.asignaciones.push({
               turno: turnoSeleccionado.nombre,
               horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
@@ -424,10 +435,11 @@ const TurnoRotativos = () => {
               duracion: Ji,
               fecha: fechaISO
             });
-          
+
             console.log(`[${trabajadorElegido.nombre}] Día: ${diaNombre}, Turno: ${turnoSeleccionado.nombre}, Tipo: ${tipoTurno}, Horas: ${Ji}`);
           };
-          
+
+
 
           if (elegibleBase) asignarTurno(elegibleBase);
           else if (elegibleExtra) asignarTurno(elegibleExtra);
