@@ -1,9 +1,10 @@
-import TurnoRotativo from './TurnoRotativos';
+import TurnoRotativos from './TurnoRotativos';
+
 
 function App() {
   return (
     <div>
-      <TurnoRotativo />
+      <TurnoRotativos/>
     </div>
   );
 }
