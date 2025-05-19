@@ -477,18 +477,17 @@ const TurnoRotativos = () => {
   };
 
 
+  const rawStart = horarioAbiertoInput;
+  const rawEnd = horarioCierreInput;
 
+  const horasPorDia = rawStart === rawEnd
+    ? 24 // Si apertura y cierre son iguales, interpretamos jornada completa
+    : ((rawEnd - rawStart + 24) % 24);
 
-
-
-  // ✅ Suma las jornadas reales directamente:
-  const totalHorasSemana = datosTurnos.reduce((semAcc, sem) =>
-    semAcc + sem.dias.reduce((diaAcc, dia) =>
-      diaAcc + dia.asignaciones.reduce((asigAcc, asig) =>
-        asigAcc + asig.duracion * asig.trabajadores.length, 0)
-      , 0)
-    , 0);
-  const totalHorasDisponibles = trabajadores.reduce((total, trabajador) => total + trabajador.horasDisponibles, 0);
+  const totalHorasSemana = horasPorDia * diasFuncionamiento;
+  const totalHorasDisponibles = trabajadores.reduce(
+    (total, t) => total + t.horasDisponibles, 0
+  );
   //const datosTurnos = generarTurnos();//cambiar
 
 
@@ -751,7 +750,7 @@ const TurnoRotativos = () => {
 
   const [domingosTrabajados, setDomingosTrabajados] = useState({});
 
-  const trabajadoresMinimos = Math.ceil(totalHorasSemana / 45);
+  const [trabajadoresMinimos, setTrabajadoresMinimos] = useState(0);
 
   const [cumpleHoras, setCumpleHoras] = useState(true);
   ;
@@ -803,28 +802,79 @@ const TurnoRotativos = () => {
     //  Forzar actualización de validaciones
     setDescansosIncorrectos(validarDescansos(nuevaData));
     setDomingosTrabajados(contarDomingos(nuevaData));
+
+
+
+
   };
+
+  const [minPorHoras, setMinPorHoras] = useState(0);
+  const [minPorDias, setMinPorDias] = useState(0);
+  const [minPorDomingos, setMinPorDomingos] = useState(0);
+  const [razonMinTrabajadores, setRazonMinTrabajadores] = useState("");
 
 
   useEffect(() => {
-    const totalHoras = totalHorasSemana;
-    const minTrabajadores = Math.ceil(totalHoras / 45);
-    const horasDisponibles = trabajadores.reduce((acc, t) => acc + t.horasDisponibles, 0);
+    if (turnos.length === 0 || trabajadores.length === 0) return;
 
-    const cumpleH = horasDisponibles >= totalHoras;
+    const horasDisponibles = trabajadores.reduce(
+      (acc, t) => acc + (t.horasDisponibles * semanas), 0
+    );
+
+    // Promedio de horas semanales por trabajador
+    const promedioHoras = trabajadores.length > 0
+      ? horasDisponibles / trabajadores.length
+      : 45; // Fallback
+
+    // Mínimo por horas
+    const minPorHoras = Math.ceil(totalHorasSemana / promedioHoras);
+
+    // Mínimo por días (6 días por semana máx)
+    const bloquesACubrir = turnos.length * diasFuncionamiento * semanas;
+    const maxBloquesPorTrabajador = 6 * semanas;
+    const minPorDias = Math.ceil(bloquesACubrir / maxBloquesPorTrabajador);
+
+    // Mínimo por domingos (cada trabajador solo puede cubrir hasta 2 domingos)
+    // Considera los turnos activos y multiplícalos por la cantidad de domingos reales
+    const turnosPorDomingo = turnos.length;               // ej: 3
+    const totalTurnosDomingo = turnosPorDomingo * semanas; // ej: 3 * 4 = 12 turnos en total
+    const maxTurnosPorTrabajador = 2;                      // porque solo puede trabajar 2 domingos (1 turno por cada uno)
+    const minPorDomingos = Math.ceil(totalTurnosDomingo / maxTurnosPorTrabajador); // 12 / 2 = 6
+
+    // Elegimos el mayor como mínimo requerido
+    const minTrabajadores = Math.max(minPorHoras, minPorDias, minPorDomingos);
+
+    const cumpleH = horasDisponibles >= totalHorasSemana;
     const cumpleCantidad = trabajadores.length >= minTrabajadores;
 
+    // Cálculo de domingos trabajados
     const domingosContados = contarDomingos(datosTurnos);
-    const cumpleDomingos = Object.values(domingosContados).every((dom) => (semanas - dom) >= 2);
+    const cumpleDomingos = Object.values(domingosContados).every(
+      (dom) => (semanas - dom) >= 2
+    );
 
-
+    // Asignar estados
     setCumpleHoras(cumpleH);
     setCumpleCantidadTrabajadores(cumpleCantidad);
     setCumpleDomingosLibres(cumpleDomingos);
+    setTrabajadoresMinimos(minTrabajadores);
+    setMinPorHoras(minPorHoras);
+    setMinPorDias(minPorDias);
+    setMinPorDomingos(minPorDomingos);
+
+    if (minTrabajadores === minPorHoras) {
+      setRazonMinTrabajadores("📊 Basado en horas semanales necesarias.");
+    } else if (minTrabajadores === minPorDias) {
+      setRazonMinTrabajadores("📅 Basado en máximo 6 días trabajables.");
+    } else {
+      setRazonMinTrabajadores("🕐 Basado en restricción de 2 domingos como máximo.");
+    }
 
     const violaciones = validarDiasSeguidos(datosTurnos);
     setViolacionesDiasSeguidos(violaciones);
   }, [datosTurnos, trabajadores, turnos, dias.length, horasColacion, semanas]);
+
+
 
 
 
@@ -996,21 +1046,47 @@ const TurnoRotativos = () => {
           <ul>
             <li>Trabajadores activos: {trabajadores.length}</li>
             <li>Horas disponibles totales: {totalHorasDisponibles} horas</li>
-            <li>Horas necesarias 24/7: {totalHorasSemana} horas</li>
+            <li>Horas necesarias semana: {totalHorasSemana} horas</li>
             <li>Duración turno largo (incluye colación): {trabajadores[0] && calcularDistribucionTurnos(trabajadores[0].horasDisponibles, diasFuncionamiento, t, horarioAbierto).J_l} h</li>
             <li>Duración turno chico (incluye colación): {trabajadores[0] && calcularDistribucionTurnos(trabajadores[0].horasDisponibles, diasFuncionamiento, t, horarioAbierto).J_ch} h</li>
 
           </ul>
         </div>
 
+
         <div className="card">
           <h2>Validaciones Legales</h2>
-          {!cumpleHoras && <p className="alert">⚠️ No se cumplen las horas mínimas.</p>}
-          {!cumpleDomingosLibres && <p className="alert">⚠️ No todos los trabajadores tienen 2 domingos libres.</p>}
-          {!cumpleCantidadTrabajadores && <p className="alert">⚠️ Se recomienda mínimo {trabajadoresMinimos} trabajadores.</p>}
+
+          {!cumpleHoras && (
+            <p className="alert">
+              ⚠️ No se cumplen las horas mínimas requeridas ({totalHorasDisponibles} de {totalHorasSemana} horas).
+            </p>
+          )}
+
+
+
+          {!cumpleCantidadTrabajadores && (
+            <p className="alert">
+              ⚠️ Se recomienda mínimo {trabajadoresMinimos} trabajadores para cubrir la jornada. Actualmente tienes {trabajadores.length}.
+            </p>
+          )}
+
+          <p className="info">
+            Mínimo por horas: {minPorHoras} trabajadores. <br />
+            Mínimo por días: {minPorDias} trabajadores. <br />
+            Mínimo por domingos: {minPorDomingos} trabajadores. <br />
+            <strong>Motivo del mínimo final:</strong> {razonMinTrabajadores}
+          </p>
+
+
+          {!cumpleDomingosLibres && (
+            <p className="alert">⚠️ No todos los trabajadores tienen 2 domingos libres.</p>
+          )}
+
           {cumpleHoras && cumpleDomingosLibres && cumpleCantidadTrabajadores && trabajadores.length > 1 && (
             <p className="success">✅ Todos los requisitos legales están cumplidos.</p>
           )}
+
           {violacionesDiasSeguidos.length > 0 && (
             <div className="alert">
               <h3>Días seguidos sin descanso:</h3>
@@ -1037,6 +1113,8 @@ const TurnoRotativos = () => {
             </div>
           )}
         </div>
+
+
 
         {descansosIncorrectos.length > 0 && (
           <div className="card">
@@ -1205,6 +1283,14 @@ export default TurnoRotativos;
     const rotacionCircular = base.map((_, i) => base[(i + semana) % base.length]);
     return [...rotacionCircular, ...extras];
   }
+
+
+
+
+
+
+  // hanlde trabjador : 
+  
 
 
  
