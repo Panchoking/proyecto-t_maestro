@@ -263,8 +263,30 @@ const TurnoRotativos = () => {
         console.warn(`Distribución inválida para ${trabajador.nombre}:`, e.message);
       }
     });
+
+    const trabajadoresOrdenados = [...trabajadores].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    // Agrupación rotatoria: 3 bases, 3 apoyos desplazados horizontalmente por semana
+    const totalTrabajadores = trabajadoresOrdenados.length;
+
+    // Cantidad deseada por grupo (puedes ajustar si cambias cantidad de turnos)
+    const cantidadBase = 3;
+    const cantidadApoyo = 3;
+
+
     let indiceGlobalRotacion = 0;
     for (let semana = 0; semana < semanas; semana++) {
+
+      
+    // Offset horizontal para esta semana
+    const offset = semana; // Semana 0 → a,b,c | Semana 1 → b,c,d | ...
+
+    // Circular shift
+    const circularSlice = (lista, inicio, cantidad) =>
+      Array.from({ length: cantidad }, (_, i) => lista[(inicio + i) % lista.length]);
+
+    const base = circularSlice(trabajadoresOrdenados, offset, cantidadBase);   // base rotada
+    const apoyo = circularSlice(trabajadoresOrdenados, offset + cantidadBase, cantidadApoyo); // apoyo rotado
       const semanaData = { semana: semana + 1, dias: [] };
       const horasSemanaTrabajador = {};
       const diasTrabajadosPorTrabajador = {};
@@ -278,7 +300,7 @@ const TurnoRotativos = () => {
       });
 
       const rotacion = trabajadores.map((_, i) => trabajadores[(i + semana) % trabajadores.length]);
-      const trabajadoresOrdenados = [...trabajadores].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
       for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
 
 
@@ -297,7 +319,8 @@ const TurnoRotativos = () => {
           // Filtrar solo los días de la semana actual
 
           if (diasTrabajadosPorTrabajador[trabajador.nombre].has(fechaISO)) return false;
-          if (diasTrabajadosPorTrabajador[trabajador.nombre].size >= 6) return false;      // ya trabajó 6 días
+          if (diasTrabajadosPorTrabajador[trabajador.nombre].size >= 6 && diaNombre !== "Domingo") return false;
+
 
           // Ya fue asignado hoy
           const yaAsignado = diaData.asignaciones.some(
@@ -348,74 +371,97 @@ const TurnoRotativos = () => {
 
         for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
           const turno = turnos[turnoIndex];
-          let elegible = null;
-          let intentos = 0;
+          let posibles = [];
 
-          // 🔄 Buscar el primer trabajador elegible desde la posición actual
-          while (intentos < trabajadoresOrdenados.length) {
-            const idx = (indiceGlobalRotacion + intentos) % trabajadoresOrdenados.length;
-            const candidato = trabajadoresOrdenados[idx];
+          if (diaNombre === "Lunes") {
+            if (base[turnoIndex]) posibles.push(base[turnoIndex]);
+          } else if (diaNombre === "Domingo") {
+            // ✅ Evaluar todos los de apoyo
+            posibles = apoyo;
+          } else {
+            if (base[turnoIndex]) posibles.push(base[turnoIndex]);
+            if (apoyo[turnoIndex]) posibles.push(apoyo[turnoIndex]);
+          }
 
+          let asignado = false;
+
+          for (let candidato of posibles) {
             if (validarElegibilidad(candidato, turno)) {
-              elegible = candidato;
-              indiceGlobalRotacion = (idx + 1) % trabajadoresOrdenados.length; // 🧠 avanzar desde aquí la próxima vez
+              const dist = distribuciones[candidato.nombre];
+              const Ji = dist.jornadas[diaIndex] ?? horasEfectivasPorTurno;
+
+              const Ei = turno.inicio;
+              const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
+
+              horasTrabajadasPorTrabajador[candidato.nombre] += Ji;
+              horasSemanaTrabajador[candidato.nombre] += Ji;
+              horasAsignadas[candidato.nombre] += Ji;
+              if (diaNombre === "Domingo") domingosContador[candidato.nombre]++;
+
+              let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
+              if (!asignacion) {
+                asignacion = {
+                  turno: turno.nombre,
+                  horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
+                  trabajadores: [],
+                  tipo: dist.clasificacion[diaIndex] ?? "adicional",
+                  duracion: Ji,
+                  fecha: fechaISO
+                };
+                diaData.asignaciones.push(asignacion);
+              }
+
+              asignacion.trabajadores.push(candidato);
+              diasTrabajadosPorTrabajador[candidato.nombre].add(fechaISO);
+              asignado = true;
               break;
             }
-
-            intentos++;
           }
 
-          // ⏩ Avanzar la rotación aunque no se asigne nadie, para no repetir bloqueado
-          if (!elegible) {
-            indiceGlobalRotacion = (indiceGlobalRotacion + intentos + 1) % trabajadoresOrdenados.length;
+          // Si no se asignó nadie
+          let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
+          if (!asignacion) {
+            asignacion = {
+              turno: turno.nombre,
+              horario: `${formatearHora(turno.inicio)}–${formatearHora(turno.fin)}`,
+              trabajadores: [],
+              tipo: "No cobertura",
+              duracion: 0,
+              fecha: fechaISO
+            };
+            diaData.asignaciones.push(asignacion);
           }
+        }
 
-          if (elegible) {
-            const dist = distribuciones[elegible.nombre];
-            const Ji = dist.jornadas[diaIndex] ?? horasEfectivasPorTurno;
+        // 🔁 Segunda pasada: agregar refuerzo si solo hay 1 trabajador en el turno
+        for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
+          const asignacion = diaData.asignaciones.find(a => a.turno === turnos[turnoIndex].nombre);
+          if (asignacion && asignacion.trabajadores.length === 1) {
+            const posibles = apoyo.filter(t =>
+              validarElegibilidad(t, turnos[turnoIndex]) &&
+              !asignacion.trabajadores.some(tr => tr.nombre === t.nombre)
+            );
 
-            const Ei = turno.inicio;
-            const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
+            if (posibles.length > 0) {
+              const candidato = posibles[0];
+              const dist = distribuciones[candidato.nombre];
+              const Ji = dist.jornadas[diaIndex] ?? horasEfectivasPorTurno;
+              const Ei = turnos[turnoIndex].inicio;
+              const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
 
-            horasTrabajadasPorTrabajador[elegible.nombre] += Ji;
-            horasSemanaTrabajador[elegible.nombre] += Ji;
-            horasAsignadas[elegible.nombre] += Ji;
-            if (diaNombre === "Domingo") domingosContador[elegible.nombre]++;
+              horasTrabajadasPorTrabajador[candidato.nombre] += Ji;
+              horasSemanaTrabajador[candidato.nombre] += Ji;
+              horasAsignadas[candidato.nombre] += Ji;
+              if (diaNombre === "Domingo") domingosContador[candidato.nombre]++;
 
-            let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
-            if (!asignacion) {
-              asignacion = {
-                turno: turno.nombre,
-                horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
-                trabajadores: [],
-                tipo: dist.clasificacion[diaIndex] ?? "adicional",
-                duracion: Ji,
-                fecha: fechaISO
-              };
-              diaData.asignaciones.push(asignacion);
-            }
-
-            asignacion.trabajadores.push(elegible);
-            diasTrabajadosPorTrabajador[elegible.nombre].add(fechaISO);
-          } else {
-            // ❌ No cobertura
-            const Ei = turno.inicio;
-            const Si = turno.fin;
-
-            let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
-            if (!asignacion) {
-              asignacion = {
-                turno: turno.nombre,
-                horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
-                trabajadores: [],
-                tipo: "No cobertura",
-                duracion: 0,
-                fecha: fechaISO
-              };
-              diaData.asignaciones.push(asignacion);
+              asignacion.trabajadores.push(candidato);
+              diasTrabajadosPorTrabajador[candidato.nombre].add(fechaISO);
             }
           }
         }
+
+
+
 
 
         semanaData.dias.push(diaData);
