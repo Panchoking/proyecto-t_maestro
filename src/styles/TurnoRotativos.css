@@ -125,7 +125,7 @@
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   width: 100%;
   transition: background-color 0.2s;
 }
@@ -219,6 +219,84 @@
   background-color: #c6f6d5;
   color: #276749;
   border-left: 4px solid #38a169;
+}
+
+/* NUEVOS ESTILOS */
+
+/* Alerta de requisito mínimo */
+.alerta-requisito {
+  background-color: #edf2f7;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.alerta-requisito.cumple {
+  background-color: #e6fffa;
+  border-left: 4px solid #38b2ac;
+}
+
+.alerta-requisito.no-cumple {
+  background-color: #fff5f5;
+  border-left: 4px solid #f56565;
+}
+
+.alerta-requisito .icono {
+  font-size: 1.5rem;
+  margin-right: 12px;
+}
+
+.alerta-requisito .mensaje {
+  flex: 1;
+  font-size: 1rem;
+  color: #4a5568;
+}
+
+.alerta-requisito .mensaje strong {
+  color: #2d3748;
+  font-weight: 600;
+}
+
+/* Contenedor de acciones */
+.actions-container {
+  margin-bottom: 20px;
+}
+
+/* Toggle para cambio de vista */
+.toggle-view {
+  display: flex;
+  margin-top: 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.view-button {
+  flex: 1;
+  padding: 10px;
+  text-align: center;
+  background-color: #f7fafc;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.view-button:first-child {
+  border-right: 1px solid #e2e8f0;
+}
+
+.view-button.active {
+  background-color: #4299e1;
+  color: white;
+}
+
+.view-button:hover:not(.active) {
+  background-color: #edf2f7;
 }
 
 /* Adaptaciones responsive */

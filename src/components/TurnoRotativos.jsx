@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
+import toast from 'react-hot-toast';
 import '../styles/TurnoRotativos.css';
 
 // Importación de utilidades y lógica
@@ -8,6 +9,9 @@ import { formatearHora } from '../utils/tiempo';
 import { calcularDistribucionTurnos } from '../utils/distribucion';
 import { generarTurnos, rellenarNoCoberturaConExtras } from '../logic/generarturnos';
 import { contarDomingos, validarDescansos, validarDiasSeguidos } from '../logic/validaciones';
+
+// Importar componente de vista de ciclo
+import VistaCiclo from './VistaCiclo.jsx';
 
 /**
  * Componente principal para gestionar turnos rotativos
@@ -55,6 +59,9 @@ const TurnoRotativos = () => {
     const [minPorDias, setMinPorDias] = useState(0);
     const [minPorDomingos, setMinPorDomingos] = useState(0);
     const [razonMinTrabajadores, setRazonMinTrabajadores] = useState("");
+    
+    // Estado para controlar la visualización activa
+    const [vistaActiva, setVistaActiva] = useState('semanal'); // 'semanal' o 'ciclo'
 
     // Calcular días de la semana según el inicio configurado
     const dias = useMemo(() => {
@@ -101,22 +108,37 @@ const TurnoRotativos = () => {
 
     // Agregar un trabajador a la lista
     const agregarTrabajador = () => {
-        if (nuevoTrabajador.trim() !== '' && horasContrato > 0) {
-            setTrabajadores([...trabajadores, {
-                nombre: nuevoTrabajador.trim(),
-                tipoContrato,
-                horasDisponibles: horasContrato
-            }]);
-            setNuevoTrabajador('');
-            setHorasContrato(45); // resetea al valor por defecto
+        if (nuevoTrabajador.trim() === '') {
+            toast.error('Ingresa un nombre válido para el trabajador');
+            return;
         }
+        
+        if (horasContrato <= 0) {
+            toast.error('Las horas de contrato deben ser mayores a 0');
+            return;
+        }
+        
+        const nuevosTrabajadores = [...trabajadores, {
+            nombre: nuevoTrabajador.trim(),
+            tipoContrato,
+            horasDisponibles: horasContrato
+        }];
+        
+        setTrabajadores(nuevosTrabajadores);
+        setNuevoTrabajador('');
+        setHorasContrato(45); // resetea al valor por defecto
+        
+        toast.success(`Trabajador "${nuevoTrabajador}" agregado correctamente`);
     };
 
     // Eliminar un trabajador de la lista
     const eliminarTrabajador = (index) => {
+        const trabajadorEliminado = trabajadores[index].nombre;
         const nuevosTrabajadores = [...trabajadores];
         nuevosTrabajadores.splice(index, 1);
         setTrabajadores(nuevosTrabajadores);
+        
+        toast.success(`Trabajador "${trabajadorEliminado}" eliminado`);
     };
 
     // Cálculos para mostrar en UI
@@ -129,7 +151,9 @@ const TurnoRotativos = () => {
     // Regenerar turnos cuando cambien los parámetros principales
     useEffect(() => {
         if (horasColacion < 0.5) {
-            alert("❗ La colación mínima debe ser de 0.5 horas (30 minutos). Ajusta el valor.");
+            toast.error('La colación mínima debe ser de 0.5 horas (30 minutos)', {
+                id: 'colacion-error',
+            });
             setHorasColacion(0.5);
             return;
         }
@@ -176,9 +200,18 @@ const TurnoRotativos = () => {
         setHorasTrabajadas(postProcesado.horasAsignadas);
         
         // Ejecutar validaciones
-        setDescansosIncorrectos(validarDescansos(postProcesado.resultado, turnos, trabajadores));
-        setDomingosTrabajados(contarDomingos(postProcesado.resultado, trabajadores));
-        setViolacionesDiasSeguidos(validarDiasSeguidos(postProcesado.resultado, trabajadores));
+        const descansosValid = validarDescansos(postProcesado.resultado, turnos, trabajadores);
+        const domingosValid = contarDomingos(postProcesado.resultado, trabajadores);
+        const diasSeguidosValid = validarDiasSeguidos(postProcesado.resultado, trabajadores);
+        
+        setDescansosIncorrectos(descansosValid);
+        setDomingosTrabajados(domingosValid);
+        setViolacionesDiasSeguidos(diasSeguidosValid);
+        
+        // Mostrar toast para informar que se generaron los turnos
+        toast.success('Turnos generados correctamente', {
+            id: 'turnos-generados',
+        });
     }, [
         trabajadores, semanas, horasColacion, horarioAbierto, horarioCierre, 
         fechaInicio, inicioSemana, diasFuncionamiento, turnos, dias, 
@@ -187,7 +220,7 @@ const TurnoRotativos = () => {
 
     // Calcular requisitos mínimos y validaciones legales
     useEffect(() => {
-        if (turnos.length === 0 || trabajadores.length === 0) return;
+        if (turnos.length === 0 || trabajadores.length === 0 || !datosTurnos.length) return;
 
         const horasDisponibles = trabajadores.reduce(
             (acc, t) => acc + (t.horasDisponibles * semanas), 0
@@ -242,47 +275,186 @@ const TurnoRotativos = () => {
         } else {
             setRazonMinTrabajadores("🕐 Basado en restricción de 2 domingos como máximo.");
         }
+        
+        // Notificaciones toast para las validaciones
+        // Identificamos cada toast para evitar duplicados
+        if (!cumpleH) {
+            toast.error(`No se cumplen las horas mínimas requeridas (${totalHorasDisponibles} de ${totalHorasSemana * semanas} h)`, {
+                id: 'horas-error',
+                duration: 4000,
+            });
+        }
+        
+        if (!cumpleCantidad) {
+            toast.error(`Se requieren mínimo ${minTrabajadores} trabajadores para cubrir la jornada. Actualmente tienes ${trabajadores.length}.`, {
+                id: 'trabajadores-error',
+                duration: 4000,
+            });
+        }
+        
+        if (!cumpleDomingos) {
+            toast.error('No todos los trabajadores tienen 2 domingos libres mínimos obligatorios.', {
+                id: 'domingos-error',
+                duration: 4000,
+            });
+        }
+        
+        if (violacionesDiasSeguidos.length > 0) {
+            toast.error(`Hay ${violacionesDiasSeguidos.length} casos de trabajadores con más de 6 días seguidos sin descanso.`, {
+                id: 'dias-seguidos-error',
+                duration: 4000,
+            });
+        }
+        
+        if (descansosIncorrectos.length > 0) {
+            toast.error(`Hay ${descansosIncorrectos.length} violaciones de descanso mínimo entre turnos (12h).`, {
+                id: 'descansos-error',
+                duration: 4000,
+            });
+        }
+        
+        // Toast de éxito si todo está bien
+        if (cumpleH && cumpleCantidad && cumpleDomingos && 
+            violacionesDiasSeguidos.length === 0 && 
+            descansosIncorrectos.length === 0) {
+            toast.success('Todos los requisitos legales están cumplidos.', {
+                id: 'validacion-ok',
+                duration: 3000,
+            });
+        }
+        
     }, [
         datosTurnos, trabajadores, turnos, dias, totalHorasSemana, 
-        domingosTrabajados, diasFuncionamiento, semanas
+        domingosTrabajados, diasFuncionamiento, semanas, 
+        violacionesDiasSeguidos, descansosIncorrectos
     ]);
 
     // Función para exportar a Excel
     const exportarExcel = () => {
-        // Crear cabecera
-        const header = ["Semana", "Día", ...turnos.map(t => `${t.nombre} (${t.inicioVisual}–${t.finVisual})`)];
-        const worksheetData = [header];
-
-        // Rellenar con datos
-        datosTurnos.forEach((semana) => {
-            semana.dias.forEach((dia) => {
-                const fila = [
-                    `Semana ${semana.semana}`,
-                    `${dia.dia} ${dia.fecha}`,
-                    ...turnos.map(turno => {
-                        const asignacion = dia.asignaciones.find(a => a.turno === turno.nombre);
-                        if (!asignacion || !asignacion.trabajadores || asignacion.trabajadores.length === 0) {
-                            return '❌ Sin cobertura';
-                        }
-                        return asignacion.trabajadores.map(t => t.nombre).join(", ");
-                    })
-                ];
-                worksheetData.push(fila);
+        if (!datosTurnos.length) {
+            toast.error('No hay datos para exportar', {
+                id: 'error-exportar'
             });
-        });
+            return;
+        }
+        
+        // Elegir qué tipo de datos exportar basado en la vista activa
+        if (vistaActiva === 'ciclo') {
+            // Exportar vista de ciclo
+            const header = ["Trabajador", ...Array.from({ length: diasFuncionamiento * semanas }, (_, i) => `D${i + 1}`)];
+            const worksheetData = [header];
+            
+            // Segunda fila para semanas
+            const semanasRow = ["Semana"];
+            datosTurnos.forEach(semana => {
+                semana.dias.forEach(() => {
+                    semanasRow.push(`S${semana.semana}`);
+                });
+            });
+            worksheetData.push(semanasRow);
+            
+            // Datos de trabajadores
+            trabajadores.forEach((trabajador, index) => {
+                const row = [`Trabajador ${index + 1}`];
+                
+                // Obtener todos los días de todas las semanas
+                const todosLosDias = datosTurnos.flatMap(semana => semana.dias);
+                
+                // Limitar a los primeros diasFuncionamiento * semanas días
+                const diasMostrados = todosLosDias.slice(0, diasFuncionamiento * semanas);
+                
+                diasMostrados.forEach(dia => {
+                    // Buscar asignaciones para este trabajador en este día
+                    const asignaciones = dia.asignaciones?.filter(asig => 
+                        asig.trabajadores?.some(t => t.nombre === trabajador.nombre)
+                    ) || [];
+                    
+                    // Si el trabajador tiene alguna asignación en este día
+                    if (asignaciones.length > 0) {
+                        // Usar el turno principal y convertirlo a código
+                        const turnoAsignado = asignaciones[0].turno;
+                        const numeroTurno = turnoAsignado.replace(/\D/g, '');
+                        let codigoTurno = '-';
+                        
+                        switch (numeroTurno) {
+                            case '1': codigoTurno = 'M'; break;
+                            case '2': codigoTurno = 'T'; break;
+                            case '3': codigoTurno = 'N'; break;
+                            default: codigoTurno = numeroTurno;
+                        }
+                        
+                        row.push(codigoTurno);
+                    } else {
+                        // Si no hay asignación, mostrar descanso
+                        row.push('-');
+                    }
+                });
+                
+                worksheetData.push(row);
+            });
+            
+            // Crear y guardar el archivo
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Ciclo de Turnos");
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            saveAs(new Blob([excelBuffer], { type: 'application/octet-stream' }), 'Ciclo_Turnos.xlsx');
+        } else {
+            // Exportar vista semanal (original)
+            const header = ["Semana", "Día", ...turnos.map(t => `${t.nombre} (${t.inicioVisual}–${t.finVisual})`)];
+            const worksheetData = [header];
 
-        // Crear y guardar el archivo
-        const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Turnos");
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        saveAs(new Blob([excelBuffer], { type: 'application/octet-stream' }), 'Turnos_Dinamico.xlsx');
+            datosTurnos.forEach((semana) => {
+                semana.dias.forEach((dia) => {
+                    const fila = [
+                        `Semana ${semana.semana}`,
+                        `${dia.dia} ${dia.fecha}`,
+                        ...turnos.map(turno => {
+                            const asignacion = dia.asignaciones.find(a => a.turno === turno.nombre);
+                            if (!asignacion || !asignacion.trabajadores || asignacion.trabajadores.length === 0) {
+                                return '❌ Sin cobertura';
+                            }
+                            return asignacion.trabajadores.map(t => t.nombre).join(", ");
+                        })
+                    ];
+                    worksheetData.push(fila);
+                });
+            });
+
+            // Crear y guardar el archivo
+            const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Turnos");
+            const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            saveAs(new Blob([excelBuffer], { type: 'application/octet-stream' }), 'Turnos_Dinamico.xlsx');
+        }
+        
+        toast.success('Excel exportado correctamente', {
+            id: 'excel-exportado'
+        });
+    };
+
+    // Aplicar horario
+    const aplicarHorario = () => {
+        setHorarioAbierto(horarioAbiertoInput);
+        setHorarioCierre(horarioCierreInput);
+        toast.success('Horario actualizado correctamente');
     };
 
     return (
         <div className="container">
             <div className="left-panel">
                 <h1 className="title">Parámetros Generales</h1>
+
+                {/* Alertas para requisitos mínimos importantes - mantener esta alerta visible siempre */}
+                {trabajadores.length > 0 && trabajadoresMinimos > 0 && (
+                    <div className={`alerta-requisito ${cumpleCantidadTrabajadores ? 'cumple' : 'no-cumple'}`}>
+                        <span className="icono">{cumpleCantidadTrabajadores ? '✅' : '⚠️'}</span>
+                        <span className="mensaje">
+                            Se requieren <strong>{trabajadoresMinimos}</strong> trabajadores para cubrir todos los turnos
+                        </span>
+                    </div>
+                )}
 
                 {/* Agregar trabajador */}
                 <div className="input-group">
@@ -335,7 +507,7 @@ const TurnoRotativos = () => {
                             if (value >= 0.5) {
                                 setHorasColacion(value);
                             } else {
-                                alert("La colación debe ser de al menos 0.5 horas.");
+                                toast.error("La colación debe ser de al menos 0.5 horas.");
                                 setHorasColacion(0.5);
                             }
                         }}
@@ -429,10 +601,7 @@ const TurnoRotativos = () => {
                     <button
                         className="primary-button"
                         style={{ marginTop: '12px' }}
-                        onClick={() => {
-                            setHorarioAbierto(horarioAbiertoInput);
-                            setHorarioCierre(horarioCierreInput);
-                        }}
+                        onClick={aplicarHorario}
                     >
                         Aplicar horario
                     </button>
@@ -443,14 +612,31 @@ const TurnoRotativos = () => {
                     <p className="alert">⚠️ El rango de horario no permite generar al menos un turno completo.</p>
                 )}
 
-                {/* Botón para exportar a Excel */}
-                <button 
-                    onClick={exportarExcel} 
-                    className="export-button"
-                    disabled={!datosTurnos.length}
-                >
-                    📥 Exportar Excel
-                </button>
+                {/* Botones de exportación y cambio de vista */}
+                <div className="actions-container">
+                    <button 
+                        onClick={exportarExcel} 
+                        className="export-button"
+                        disabled={!datosTurnos.length}
+                    >
+                        📥 Exportar Excel
+                    </button>
+                    
+                    <div className="toggle-view">
+                        <button 
+                            className={`view-button ${vistaActiva === 'semanal' ? 'active' : ''}`}
+                            onClick={() => setVistaActiva('semanal')}
+                        >
+                            Vista Semanal
+                        </button>
+                        <button 
+                            className={`view-button ${vistaActiva === 'ciclo' ? 'active' : ''}`}
+                            onClick={() => setVistaActiva('ciclo')}
+                        >
+                            Vista Ciclo
+                        </button>
+                    </div>
+                </div>
 
                 {/* Panel de variables matemáticas */}
                 <div className="card">
@@ -496,104 +682,6 @@ const TurnoRotativos = () => {
                     </ul>
                 </div>
 
-                {/* Panel de validaciones legales */}
-                <div className="card">
-                    <h2>Validaciones Legales</h2>
-
-                    {!cumpleHoras && (
-                        <p className="alert">
-                            ⚠️ No se cumplen las horas mínimas requeridas ({totalHorasDisponibles} de {totalHorasSemana * semanas} horas).
-                        </p>
-                    )}
-
-                    {!cumpleCantidadTrabajadores && (
-                        <p className="alert">
-                            ⚠️ Se recomienda mínimo {trabajadoresMinimos} trabajadores para cubrir la jornada. 
-                            Actualmente tienes {trabajadores.length}.
-                        </p>
-                    )}
-
-                    <p className="info">
-                        Mínimo por horas: {minPorHoras} trabajadores. <br />
-                        Mínimo por días: {minPorDias} trabajadores. <br />
-                        Mínimo por domingos: {minPorDomingos} trabajadores. <br />
-                        <strong>Motivo del mínimo final:</strong> {razonMinTrabajadores}
-                    </p>
-
-                    {!cumpleDomingosLibres && (
-                        <p className="alert">⚠️ No todos los trabajadores tienen 2 domingos libres.</p>
-                    )}
-
-                    {cumpleHoras && cumpleDomingosLibres && cumpleCantidadTrabajadores && trabajadores.length > 1 && (
-                        <p className="success">✅ Todos los requisitos legales están cumplidos.</p>
-                    )}
-
-                    {/* Tabla de días seguidos */}
-                    {violacionesDiasSeguidos.length > 0 && (
-                        <div className="alert">
-                            <h3>Días seguidos sin descanso:</h3>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Trabajador</th>
-                                        <th>Desde</th>
-                                        <th>Hasta</th>
-                                        <th>Días seguidos</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {violacionesDiasSeguidos.map((v, index) => (
-                                        <tr key={index}>
-                                            <td>{v.trabajador}</td>
-                                            <td>{v.desde}</td>
-                                            <td>{v.hasta}</td>
-                                            <td>{v.diasSeguidos}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
-                {/* Violaciones de descanso entre turnos */}
-                {descansosIncorrectos.length > 0 && (
-                    <div className="card">
-                        <h3>Violaciones de descanso entre turnos:</h3>
-                        <ul>
-                            {descansosIncorrectos.map((descanso, idx) => (
-                                <li key={idx} className="alert">
-                                    ⚠️ {descanso.trabajador} trabajó el {descanso.diaActual} {descanso.fechaActual}
-                                    ({descanso.turnoActual} {descanso.horarioActual}) y luego el {descanso.diaSiguiente} {descanso.fechaSiguiente}
-                                    ({descanso.turnoSiguiente} {descanso.horarioSiguiente}), con solo <strong>
-                                        {Math.max(0, descanso.descanso.toFixed(1))}</strong> horas de descanso.
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-
-                {/* Panel de domingos libres y horas trabajadas */}
-                <div className="card">
-                    <h2>Domingos Libres</h2>
-                    <ul>
-                        {Object.entries(domingosTrabajados).map(([nombre, domingos]) => {
-                            const libres = semanas - domingos;
-                            return (
-                                <li key={nombre}>
-                                    {nombre}: {libres} domingos libres {libres >= 2 ? "✅" : "⚠️"}
-                                </li>
-                            );
-                        })}
-                    </ul>
-                    <h3>Horas trabajadas</h3>
-                    <ul>
-                        {Object.entries(horasTrabajadasPorTrabajador).map(([nombre, horas]) => (
-                            <li key={nombre}>{nombre}: {horas} horas</li>
-                        ))}
-                    </ul>
-                </div>
-
                 {/* Configuración de inicio de semana y días de funcionamiento */}
                 <div className="input-group">
                     <label>Día de inicio de semana:</label>
@@ -627,44 +715,57 @@ const TurnoRotativos = () => {
 
             {/* Panel Derecho - Malla de Turnos */}
             <div className="right-panel">
-                <h1 className="title">Malla de Turnos</h1>
-                {datosTurnos.map((semana) => (
-                    <div key={semana.semana} className="card">
-                        <h2>Semana {semana.semana}</h2>
-                        <div className="table-container">
-                            <table className="turno-table">
-                                <thead>
-                                    <tr>
-                                        <th>Día</th>
-                                        {turnos.map(turno => (
-                                            <th key={turno.nombre}>{turno.nombre}<br /><small>{turno.inicioVisual}–{turno.finVisual}</small></th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {semana.dias.map((diaData, idx) => (
-                                        <tr key={idx}>
-                                            <td>
-                                                {diaData.dia}<br /><small>{diaData.fecha}</small>
-                                            </td>
-                                            {turnos.map((turno, index) => {
-                                                const asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
-                                                const nombres = asignacion?.trabajadores?.map(t => t.nombre).join(", ") || "❌ No cobertura";
-
-                                                return (
-                                                    <td key={index}>
-                                                        {nombres}<br />
-                                                        <small>{asignacion?.horario || `${turno.inicioVisual}–${turno.finVisual}`}</small>
+                {vistaActiva === 'ciclo' ? (
+                    // Vista de ciclo (nuevo formato)
+                    <VistaCiclo 
+                        datosTurnos={datosTurnos} 
+                        trabajadores={trabajadores} 
+                        turnos={turnos} 
+                        diasCiclo={diasFuncionamiento * semanas} 
+                    />
+                ) : (
+                    // Vista semanal (formato original)
+                    <>
+                        <h1 className="title">Malla de Turnos</h1>
+                        {datosTurnos.map((semana) => (
+                            <div key={semana.semana} className="card">
+                                <h2>Semana {semana.semana}</h2>
+                                <div className="table-container">
+                                    <table className="turno-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Día</th>
+                                                {turnos.map(turno => (
+                                                    <th key={turno.nombre}>{turno.nombre}<br /><small>{turno.inicioVisual}–{turno.finVisual}</small></th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {semana.dias.map((diaData, idx) => (
+                                                <tr key={idx}>
+                                                    <td>
+                                                        {diaData.dia}<br /><small>{diaData.fecha}</small>
                                                     </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                ))}
+                                                    {turnos.map((turno, index) => {
+                                                        const asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
+                                                        const nombres = asignacion?.trabajadores?.map(t => t.nombre).join(", ") || "❌ Sin cobertura";
+
+                                                        return (
+                                                            <td key={index}>
+                                                                {nombres}<br />
+                                                                <small>{asignacion?.horario || `${turno.inicioVisual}–${turno.finVisual}`}</small>
+                                                            </td>
+                                                        );
+                                                    })}
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ))}
+                    </>
+                )}
             </div>
         </div>
     );
