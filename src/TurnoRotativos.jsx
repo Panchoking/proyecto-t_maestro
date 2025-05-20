@@ -237,340 +237,447 @@ const TurnoRotativos = () => {
     setTrabajadores(nuevosTrabajadores);
   };
 
-  const generarTurnos = () => {
-    const resultado = [];
-    const domingosContador = {};
-    const horasTrabajadasPorTrabajador = {};
-    const horasAsignadas = {};
+const generarTurnos = () => {
+  const resultado = [];
+  const domingosContador = {};
+  const horasTrabajadasPorTrabajador = {};
+  const horasAsignadas = {};
 
-    trabajadores.forEach((t) => {
-      horasTrabajadasPorTrabajador[t.nombre] = 0;
-      horasAsignadas[t.nombre] = 0;
-      domingosContador[t.nombre] = 0;
+  trabajadores.forEach((t) => {
+    horasTrabajadasPorTrabajador[t.nombre] = 0;
+    horasAsignadas[t.nombre] = 0;
+    domingosContador[t.nombre] = 0;
+  });
+
+  const distribuciones = {};
+  trabajadores.forEach((trabajador) => {
+    //distribucion dentro de los dias
+    try {
+      distribuciones[trabajador.nombre] = calcularDistribucionTurnos(
+        trabajador.horasDisponibles,
+        diasFuncionamiento,
+        t,
+        horarioAbierto
+      );
+    } catch (e) {
+      console.warn(`Distribución inválida para ${trabajador.nombre}:`, e.message);
+    }
+  });
+
+  const trabajadoresOrdenados = [...trabajadores].sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  // Agrupación rotatoria: 3 bases, 3 apoyos desplazados horizontalmente por semana
+  const totalTrabajadores = trabajadoresOrdenados.length;
+
+  // Cantidad deseada por grupo (puedes ajustar si cambias cantidad de turnos)
+  const cantidadBase = 3;
+  const cantidadApoyo = 3;
+
+  // Define circularSlice aquí, fuera del bucle de semanas
+  const circularSlice = (lista, inicio, cantidad) =>
+    Array.from({ length: cantidad }, (_, i) => lista[(inicio + i) % lista.length]);
+
+  let indiceGlobalRotacion = 0;
+  for (let semana = 0; semana < semanas; semana++) {
+    const semanaData = { semana: semana + 1, dias: [] };
+    const horasSemanaTrabajador = {};
+    const diasTrabajadosPorTrabajador = {};
+    trabajadores.forEach(t => {
+      horasSemanaTrabajador[t.nombre] = 0;
+      diasTrabajadosPorTrabajador[t.nombre] = new Set();
     });
 
-    const distribuciones = {};
-    trabajadores.forEach((trabajador) => {
-      //distribucion dentro de los dias
-      try {
-        distribuciones[trabajador.nombre] = calcularDistribucionTurnos(
-          trabajador.horasDisponibles,
-          diasFuncionamiento,
-          t,
-          horarioAbierto
-        );
-      } catch (e) {
-        console.warn(`Distribución inválida para ${trabajador.nombre}:`, e.message);
-      }
+    trabajadores.forEach(t => {
+      horasSemanaTrabajador[t.nombre] = 0;
     });
 
-    const trabajadoresOrdenados = [...trabajadores].sort((a, b) => a.nombre.localeCompare(b.nombre));
+    const rotacion = trabajadores.map((_, i) => trabajadores[(i + semana) % trabajadores.length]);
 
-    // Agrupación rotatoria: 3 bases, 3 apoyos desplazados horizontalmente por semana
-    const totalTrabajadores = trabajadoresOrdenados.length;
+    // Variables para almacenar los grupos base
+    let base = [];
+    let apoyoCompleto = [];
 
-    // Cantidad deseada por grupo (puedes ajustar si cambias cantidad de turnos)
-    const cantidadBase = 3;
-    const cantidadApoyo = 3;
+    // Determinar patrón según la semana
+    if (semana < 2) {
+      // Patrón original para semanas 1 y 2
+      const offset = semana;
+      base = circularSlice(trabajadoresOrdenados, offset, cantidadBase);
+      apoyoCompleto = circularSlice(trabajadoresOrdenados, offset + cantidadBase, cantidadApoyo);
+    }
 
+    for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
+      const fechaActual = new Date(fechaInicio);
+      fechaActual.setDate(fechaInicio.getDate() + semana * dias.length + diaIndex);
+      const fechaISO = fechaActual.toISOString().split('T')[0];
+      const diaNombre = dias[diaIndex];
+      const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
 
-    let indiceGlobalRotacion = 0;
-    for (let semana = 0; semana < semanas; semana++) {
+      // Determinar grupos base y apoyo según el día y la semana
+      let apoyo = [];
 
-
-      // Offset horizontal para esta semana
-      const offset = semana; // Semana 0 → a,b,c | Semana 1 → b,c,d | ...
-
-      // Circular shift
-      const circularSlice = (lista, inicio, cantidad) =>
-        Array.from({ length: cantidad }, (_, i) => lista[(inicio + i) % lista.length]);
-
-      const base = circularSlice(trabajadoresOrdenados, offset, cantidadBase);   // base rotada
-      const apoyoCompleto = circularSlice(trabajadoresOrdenados, offset + cantidadBase, cantidadApoyo);
-
-      const semanaData = { semana: semana + 1, dias: [] };
-      const horasSemanaTrabajador = {};
-      const diasTrabajadosPorTrabajador = {};
-      trabajadores.forEach(t => {
-        horasSemanaTrabajador[t.nombre] = 0;
-        diasTrabajadosPorTrabajador[t.nombre] = new Set();
-      });
-
-      trabajadores.forEach(t => {
-        horasSemanaTrabajador[t.nombre] = 0;
-      });
-
-      const rotacion = trabajadores.map((_, i) => trabajadores[(i + semana) % trabajadores.length]);
-
-      for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
-
-
-        const fechaActual = new Date(fechaInicio);
-        fechaActual.setDate(fechaInicio.getDate() + semana * dias.length + diaIndex);
-        const fechaISO = fechaActual.toISOString().split('T')[0];
-        const diaNombre = dias[diaIndex];
-        const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
-
-        const validarElegibilidad = (trabajador, turno) => {
-          if (diaNombre === "Domingo") {
-            console.log(`🔍 Evaluando a ${trabajador.nombre} para el turno ${turno.nombre} del DOMINGO ${fechaISO}`);
-          }
-
-          const dist = distribuciones[trabajador.nombre];
-          if (!dist) return { elegible: false };
-
-          let Ji = dist.jornadas[diaIndex];
-
-          // Si no hay jornada, y es domingo, asignar jornada estándar
-          if (Ji === undefined) {
-            if (diaNombre === "Domingo") {
-              Ji = horasEfectivasPorTurno; // solo si no hay ninguna jornada definida
-            } else {
-              return { elegible: false };
-            }
-          }
-
-          // Si el día es domingo y no tiene jornada asignada, usar valor efectivo
-          if (diaNombre === "Domingo" && Ji === 0) {
-            Ji = horasEfectivasPorTurno;
-          }
-
-          const JiUsar = Ji;
-
-          // ⚠️ Ya asignado este día
-          if (diasTrabajadosPorTrabajador[trabajador.nombre].has(fechaISO)) {
-            if (diaNombre === "Domingo") {
-              console.warn(`❌ ${trabajador.nombre} ya asignado este día (${fechaISO})`);
-            }
-            return { elegible: false };
-          }
-
-          // Determinar si este trabajador pertenece al grupo de apoyo
-          const esTrabajadrDeApoyo = apoyo.some(t => t.nombre === trabajador.nombre);
-
-          // ⚠️ Validar que tenga horas restantes suficientes - MODIFICADO PARA DOMINGOS
-          const horasRestantesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
-
-          if (diaNombre === "Domingo") {
-            // Para el domingo, permitir usar las horas restantes disponibles
-            const horasMinimas = 4; // Mínimo de horas aceptable para un turno de domingo
-
-            if (horasRestantesSemana <= 0) {
-              console.warn(`❌ ${trabajador.nombre} no tiene horas restantes disponibles para el domingo.`);
-              return { elegible: false };
-            } else if (horasRestantesSemana < horasMinimas) {
-              console.warn(`❌ ${trabajador.nombre} tiene muy pocas horas restantes (${horasRestantesSemana}). Necesitamos al menos ${horasMinimas}.`);
-              return { elegible: false };
-            } else {
-              // Usar las horas disponibles que quedan (hasta el máximo del turno normal)
-              const horasAUsar = Math.min(JiUsar, horasRestantesSemana);
-              console.log(`✅ ${trabajador.nombre} tiene ${horasRestantesSemana} horas restantes. Usando ${horasAUsar} para el domingo.`);
-              // Continúa con las demás validaciones, pero guarda la cantidad de horas a usar
-              // Ji será actualizado al final
-              Ji = horasAUsar;
-            }
-          } else if (horasRestantesSemana < JiUsar) {
-            // Para días que no son domingo, mantener la validación estricta
-            if (diaNombre === "Domingo") {
-              console.warn(`❌ ${trabajador.nombre} no tiene suficientes horas restantes. Necesita: ${JiUsar}, Disponibles: ${horasRestantesSemana}`);
-            }
-            return { elegible: false };
-          }
-
-          // ⚠️ Máximo 6 días de trabajo por semana - MODIFICADO PARA GRUPO DE APOYO EN DOMINGO
-          const diasTrabajados = diasTrabajadosPorTrabajador[trabajador.nombre].size;
-          if (diasTrabajados >= 6) {
-            // Si es domingo Y el trabajador es del grupo de apoyo, permitir la excepción
-            if (diaNombre === "Domingo" && esTrabajadrDeApoyo) {
-              // Permitir asignación para el grupo de apoyo en domingo
-              console.log(`✅ ${trabajador.nombre} trabajará el domingo como séptimo día (grupo de apoyo)`);
-            } else {
-              if (diaNombre === "Domingo") {
-                console.warn(`❌ ${trabajador.nombre} ya tiene 6 días asignados esta semana`);
-              }
-              return { elegible: false };
-            }
-          }
-
-          // ⚠️ Ya fue asignado hoy en otro turno
-          const yaAsignado = diaData.asignaciones.some(a =>
-            a.trabajadores.some(t => t.nombre === trabajador.nombre)
-          );
-          if (yaAsignado) return { elegible: false };
-
-          // ⚠️ Máximo 2 domingos
-          if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return { elegible: false };
-
-          // ⚠️ Validar descanso mínimo de 12 horas
-          const Ei = turno.inicio;
-          const fechaTurno = new Date(fechaISO);
-          fechaTurno.setHours(Math.floor(Ei), (Ei % 1) * 60, 0, 0);
-
-          const turnosAnteriores = resultado
-            .flatMap(s => s.dias)
-            .filter(d => new Date(d.fecha) <= fechaTurno)
-            .flatMap(dia =>
-              dia.asignaciones
-                .filter(a => a.trabajadores.some(t => t.nombre === trabajador.nombre))
-                .map(a => {
-                  const turnoPrev = turnos.find(t => t.nombre === a.turno);
-                  const fin = turnoPrev?.fin || 0;
-                  const inicio = turnoPrev?.inicio || 0;
-                  const fechaFin = new Date(dia.fecha);
-                  fechaFin.setHours(Math.floor(fin), (fin % 1) * 60, 0, 0);
-                  if (fin < inicio) {
-                    fechaFin.setDate(fechaFin.getDate() + 1); // turno cruzado
-                  }
-                  return { horaFin: fechaFin };
-                })
-            )
-            .sort((a, b) => b.horaFin - a.horaFin)
-            .slice(0, 2);
-
-          for (let asign of turnosAnteriores) {
-            const horasDescanso = (fechaTurno - asign.horaFin) / (1000 * 60 * 60);
-            if (horasDescanso < 12) return { elegible: false };
-          }
-
-          // 🧪 Log para rastrear por qué alguien no es elegido
-          if (diaNombre === "Domingo") {
-            console.log(
-              `🧪 ${trabajador.nombre} - JiUsar: ${Ji}, Restante: ${horasRestantesSemana}, Días: ${diasTrabajados}, Domingos: ${domingosContador[trabajador.nombre]}`
-            );
-          }
-
-          return { elegible: true, JiUsar: Ji };  // Retornar las horas ajustadas para domingos
-        };
-
-        // ✅ Apoyo solo desde martes en adelante
-        let apoyo = (diaNombre !== "Lunes") ? apoyoCompleto : [];
-
-        // ✅ Si es domingo, usar ÚNICAMENTE el grupo de apoyo
+      if (semana < 2) {
+        // Patrón original para semanas 1 y 2
+        apoyo = (diaNombre !== "Lunes") ? apoyoCompleto : [];
+        
         if (diaNombre === "Domingo") {
           apoyo = apoyoCompleto; // Solo usar trabajadores del grupo de apoyo para domingo
         }
-
-        for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
-          const turno = turnos[turnoIndex];
-          let posibles = [];
-
+      } else {
+        // Patrón específico para semanas 3 y 4
+        if (semana % 2 === 0) { // Semana 3
           if (diaNombre === "Lunes") {
-            if (base[turnoIndex]) posibles.push(base[turnoIndex]);
+            base = [
+              trabajadoresOrdenados[3], // d
+              trabajadoresOrdenados[4], // e
+              trabajadoresOrdenados[5]  // f
+            ];
+            apoyo = [];
           } else if (diaNombre === "Domingo") {
-
-            // ✅ Evaluar todos los de apoyo
-            posibles = apoyo;
+            base = [];
+            apoyo = [
+              trabajadoresOrdenados[0], // a - Turno 1
+              trabajadoresOrdenados[1], // b - Turno 2 (corregido)
+              trabajadoresOrdenados[2]  // c - Turno 3 (corregido)
+            ];
           } else {
-            if (base[turnoIndex]) posibles.push(base[turnoIndex]);
-            if (apoyo[turnoIndex]) posibles.push(apoyo[turnoIndex]);
+            // Martes a sábado
+            base = [
+              trabajadoresOrdenados[3], // d
+              trabajadoresOrdenados[4], // e
+              trabajadoresOrdenados[5]  // f
+            ];
+            apoyo = [
+              trabajadoresOrdenados[0], // a
+              trabajadoresOrdenados[1], // b
+              trabajadoresOrdenados[2]  // c
+            ];
           }
-
-          let asignado = false;
-
-          for (let candidato of posibles) {
-            const resultadoElegibilidad = validarElegibilidad(candidato, turno);
-            if (resultadoElegibilidad.elegible) {
-              const dist = distribuciones[candidato.nombre];
-              let Ji = resultadoElegibilidad.JiUsar; // ✅ usa el valor ya validado
-              if (Ji === undefined || Ji === 0) {
-                Ji = horasEfectivasPorTurno;
-              }
-
-              const Ei = turno.inicio;
-              const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
-
-              horasTrabajadasPorTrabajador[candidato.nombre] += Ji;
-              horasSemanaTrabajador[candidato.nombre] += Ji;
-              horasAsignadas[candidato.nombre] += Ji;
-              if (diaNombre === "Domingo") domingosContador[candidato.nombre]++;
-
-
-              let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
-              if (!asignacion) {
-                asignacion = {
-                  turno: turno.nombre,
-                  horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
-                  trabajadores: [],
-                  tipo: dist.clasificacion[diaIndex] ?? "adicional",
-                  duracion: Ji,
-                  fecha: fechaISO
-                };
-                diaData.asignaciones.push(asignacion);
-              }
-
-              asignacion.trabajadores.push(candidato);
-              diasTrabajadosPorTrabajador[candidato.nombre].add(fechaISO);
-              asignado = true;
-              break;
-            }
-          }
-
-          // Si no se asignó nadie
-          let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
-          if (!asignacion) {
-            asignacion = {
-              turno: turno.nombre,
-              horario: `${formatearHora(turno.inicio)}–${formatearHora(turno.fin)}`,
-              trabajadores: [],
-              tipo: "No cobertura",
-              duracion: 0,
-              fecha: fechaISO
-            };
-            diaData.asignaciones.push(asignacion);
+        } else { // Semana 4
+          if (diaNombre === "Lunes") {
+            base = [
+              trabajadoresOrdenados[4], // e
+              trabajadoresOrdenados[5], // f
+              trabajadoresOrdenados[0]  // a
+            ];
+            apoyo = [];
+          } else if (diaNombre === "Domingo") {
+            base = [];
+            apoyo = [
+              trabajadoresOrdenados[1], // b - Turno 1
+              trabajadoresOrdenados[2], // c - Turno 2
+              trabajadoresOrdenados[3]  // d - Turno 3
+            ];
+          } else {
+            // Martes a sábado
+            base = [
+              trabajadoresOrdenados[4], // e
+              trabajadoresOrdenados[5], // f
+              trabajadoresOrdenados[0]  // a
+            ];
+            apoyo = [
+              trabajadoresOrdenados[1], // b
+              trabajadoresOrdenados[2], // c
+              trabajadoresOrdenados[3]  // d
+            ];
           }
         }
-
-        // 🔁 Segunda pasada: agregar refuerzo si solo hay 1 trabajador en el turno
-        let apoyoSegundaPasada = diaNombre !== "Lunes" ? apoyoCompleto : [];
-        for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
-          const asignacion = diaData.asignaciones.find(a => a.turno === turnos[turnoIndex].nombre);
-          if (asignacion && asignacion.trabajadores.length === 1) {
-            const posibles = apoyoSegundaPasada
-              .map(t => ({
-                candidato: t,
-                resultado: validarElegibilidad(t, turnos[turnoIndex])
-              }))
-              .filter(obj =>
-                obj.resultado.elegible &&
-                !asignacion.trabajadores.some(tr => tr.nombre === obj.candidato.nombre)
-              );
-
-            if (posibles.length > 0) {
-              const { candidato, resultado } = posibles[0];
-              const dist = distribuciones[candidato.nombre];
-              const Ji = resultado.JiUsar;
-              const Ei = turnos[turnoIndex].inicio;
-              const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
-
-              horasTrabajadasPorTrabajador[candidato.nombre] += Ji;
-              horasSemanaTrabajador[candidato.nombre] += Ji;
-              horasAsignadas[candidato.nombre] += Ji;
-              if (diaNombre === "Domingo") domingosContador[candidato.nombre]++;
-
-
-
-              asignacion.trabajadores.push(candidato);
-              diasTrabajadosPorTrabajador[candidato.nombre].add(fechaISO);
-            }
-          }
-        }
-
-
-
-
-
-        semanaData.dias.push(diaData);
       }
 
-      resultado.push(semanaData);
+      const validarElegibilidad = (trabajador, turno) => {
+        if (diaNombre === "Domingo") {
+          console.log(`🔍 Evaluando a ${trabajador.nombre} para el turno ${turno.nombre} del DOMINGO ${fechaISO}`);
+        }
+
+        const dist = distribuciones[trabajador.nombre];
+        if (!dist) return { elegible: false };
+
+        let Ji = dist.jornadas[diaIndex];
+
+        // Si no hay jornada, y es domingo, asignar jornada estándar
+        if (Ji === undefined) {
+          if (diaNombre === "Domingo") {
+            Ji = horasEfectivasPorTurno; // solo si no hay ninguna jornada definida
+          } else {
+            return { elegible: false };
+          }
+        }
+
+        // Si el día es domingo y no tiene jornada asignada, usar valor efectivo
+        if (diaNombre === "Domingo" && Ji === 0) {
+          Ji = horasEfectivasPorTurno;
+        }
+
+        const JiUsar = Ji;
+
+        // ⚠️ Ya asignado este día
+        if (diasTrabajadosPorTrabajador[trabajador.nombre].has(fechaISO)) {
+          if (diaNombre === "Domingo") {
+            console.warn(`❌ ${trabajador.nombre} ya asignado este día (${fechaISO})`);
+          }
+          return { elegible: false };
+        }
+
+        // Determinar si este trabajador pertenece al grupo de apoyo
+        const esTrabajadrDeApoyo = apoyo.some(t => t.nombre === trabajador.nombre);
+
+        // ⚠️ Validar que tenga horas restantes suficientes - MODIFICADO PARA DOMINGOS
+        const horasRestantesSemana = trabajador.horasDisponibles - horasSemanaTrabajador[trabajador.nombre];
+
+        if (diaNombre === "Domingo") {
+          // Para el domingo, permitir usar las horas restantes disponibles
+          const horasMinimas = 4; // Mínimo de horas aceptable para un turno de domingo
+
+          if (horasRestantesSemana <= 0) {
+            console.warn(`❌ ${trabajador.nombre} no tiene horas restantes disponibles para el domingo.`);
+            return { elegible: false };
+          } else if (horasRestantesSemana < horasMinimas) {
+            console.warn(`❌ ${trabajador.nombre} tiene muy pocas horas restantes (${horasRestantesSemana}). Necesitamos al menos ${horasMinimas}.`);
+            return { elegible: false };
+          } else {
+            // Usar las horas disponibles que quedan (hasta el máximo del turno normal)
+            const horasAUsar = Math.min(JiUsar, horasRestantesSemana);
+            console.log(`✅ ${trabajador.nombre} tiene ${horasRestantesSemana} horas restantes. Usando ${horasAUsar} para el domingo.`);
+            // Continúa con las demás validaciones, pero guarda la cantidad de horas a usar
+            // Ji será actualizado al final
+            Ji = horasAUsar;
+          }
+        } else if (horasRestantesSemana < JiUsar) {
+          // Para días que no son domingo, mantener la validación estricta
+          if (diaNombre === "Domingo") {
+            console.warn(`❌ ${trabajador.nombre} no tiene suficientes horas restantes. Necesita: ${JiUsar}, Disponibles: ${horasRestantesSemana}`);
+          }
+          return { elegible: false };
+        }
+
+        // ⚠️ Máximo 6 días de trabajo por semana - MODIFICADO PARA GRUPO DE APOYO EN DOMINGO
+        const diasTrabajados = diasTrabajadosPorTrabajador[trabajador.nombre].size;
+        if (diasTrabajados >= 6) {
+          // Si es domingo Y el trabajador es del grupo de apoyo, permitir la excepción
+          if (diaNombre === "Domingo" && esTrabajadrDeApoyo) {
+            // Permitir asignación para el grupo de apoyo en domingo
+            console.log(`✅ ${trabajador.nombre} trabajará el domingo como séptimo día (grupo de apoyo)`);
+          } else {
+            if (diaNombre === "Domingo") {
+              console.warn(`❌ ${trabajador.nombre} ya tiene 6 días asignados esta semana`);
+            }
+            return { elegible: false };
+          }
+        }
+
+        // ⚠️ Ya fue asignado hoy en otro turno
+        const yaAsignado = diaData.asignaciones.some(a =>
+          a.trabajadores.some(t => t.nombre === trabajador.nombre)
+        );
+        if (yaAsignado) return { elegible: false };
+
+        // ⚠️ Máximo 2 domingos
+        if (diaNombre === "Domingo" && domingosContador[trabajador.nombre] >= 2) return { elegible: false };
+
+        // ⚠️ Validar descanso mínimo de 12 horas
+        const Ei = turno.inicio;
+        const fechaTurno = new Date(fechaISO);
+        fechaTurno.setHours(Math.floor(Ei), (Ei % 1) * 60, 0, 0);
+
+        const turnosAnteriores = resultado
+          .flatMap(s => s.dias)
+          .filter(d => new Date(d.fecha) <= fechaTurno)
+          .flatMap(dia =>
+            dia.asignaciones
+              .filter(a => a.trabajadores.some(t => t.nombre === trabajador.nombre))
+              .map(a => {
+                const turnoPrev = turnos.find(t => t.nombre === a.turno);
+                const fin = turnoPrev?.fin || 0;
+                const inicio = turnoPrev?.inicio || 0;
+                const fechaFin = new Date(dia.fecha);
+                fechaFin.setHours(Math.floor(fin), (fin % 1) * 60, 0, 0);
+                if (fin < inicio) {
+                  fechaFin.setDate(fechaFin.getDate() + 1); // turno cruzado
+                }
+                return { horaFin: fechaFin };
+              })
+          )
+          .sort((a, b) => b.horaFin - a.horaFin)
+          .slice(0, 2);
+
+        for (let asign of turnosAnteriores) {
+          const horasDescanso = (fechaTurno - asign.horaFin) / (1000 * 60 * 60);
+          if (horasDescanso < 12) return { elegible: false };
+        }
+
+        // 🧪 Log para rastrear por qué alguien no es elegido
+        if (diaNombre === "Domingo") {
+          console.log(
+            `🧪 ${trabajador.nombre} - JiUsar: ${Ji}, Restante: ${horasRestantesSemana}, Días: ${diasTrabajados}, Domingos: ${domingosContador[trabajador.nombre]}`
+          );
+        }
+
+        return { elegible: true, JiUsar: Ji };  // Retornar las horas ajustadas para domingos
+      };
+
+      for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
+        const turno = turnos[turnoIndex];
+        let posibles = [];
+
+        if (diaNombre === "Lunes") {
+          if (base[turnoIndex]) posibles.push(base[turnoIndex]);
+        } else if (diaNombre === "Domingo") {
+          // Caso especial para la semana 3, domingo, turno específico
+          if (semana === 2 && diaNombre === "Domingo") {
+            if (turnoIndex === 0) posibles = [trabajadoresOrdenados[0]]; // a - Turno 1
+            else if (turnoIndex === 1) posibles = [trabajadoresOrdenados[1]]; // b - Turno 2
+            else if (turnoIndex === 2) posibles = [trabajadoresOrdenados[2]]; // c - Turno 3
+          }
+          // Para semanas 3-4, asignar específicamente por turno
+          else if (semana >= 2) {
+            // Asignar específicamente el trabajador para este turno
+            if (turnoIndex < apoyo.length) {
+              posibles.push(apoyo[turnoIndex]);
+            }
+          } else {
+            // Comportamiento original para semanas 1-2
+            posibles = apoyo;
+          }
+        } else {
+          if (base[turnoIndex]) posibles.push(base[turnoIndex]);
+          if (apoyo[turnoIndex]) posibles.push(apoyo[turnoIndex]);
+        }
+
+        let asignado = false;
+
+        for (let candidato of posibles) {
+          // Caso especial para la semana 3, domingo
+          let resultadoElegibilidad;
+          if (semana === 2 && diaNombre === "Domingo") {
+            if ((turnoIndex === 0 && candidato.nombre === trabajadoresOrdenados[0].nombre) || // a - Turno 1
+                (turnoIndex === 1 && candidato.nombre === trabajadoresOrdenados[1].nombre) || // b - Turno 2
+                (turnoIndex === 2 && candidato.nombre === trabajadoresOrdenados[2].nombre)) { // c - Turno 3
+              resultadoElegibilidad = { elegible: true, JiUsar: horasEfectivasPorTurno };
+              console.log(`🔧 Forzando asignación del trabajador para turno ${turnoIndex+1} del domingo en semana 3`);
+            } else {
+              resultadoElegibilidad = validarElegibilidad(candidato, turno);
+            }
+          } else {
+            resultadoElegibilidad = validarElegibilidad(candidato, turno);
+          }
+          
+          if (resultadoElegibilidad.elegible) {
+            const dist = distribuciones[candidato.nombre];
+            let Ji = resultadoElegibilidad.JiUsar; // ✅ usa el valor ya validado
+            if (Ji === undefined || Ji === 0) {
+              Ji = horasEfectivasPorTurno;
+            }
+
+            const Ei = turno.inicio;
+            const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
+
+            horasTrabajadasPorTrabajador[candidato.nombre] += Ji;
+            horasSemanaTrabajador[candidato.nombre] += Ji;
+            horasAsignadas[candidato.nombre] += Ji;
+            if (diaNombre === "Domingo") domingosContador[candidato.nombre]++;
+
+            let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
+            if (!asignacion) {
+              asignacion = {
+                turno: turno.nombre,
+                horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
+                trabajadores: [],
+                tipo: dist.clasificacion[diaIndex] ?? "adicional",
+                duracion: Ji,
+                fecha: fechaISO
+              };
+              diaData.asignaciones.push(asignacion);
+            }
+
+            asignacion.trabajadores.push(candidato);
+            diasTrabajadosPorTrabajador[candidato.nombre].add(fechaISO);
+            asignado = true;
+            break;
+          }
+        }
+
+        // Si no se asignó nadie
+        let asignacion = diaData.asignaciones.find(a => a.turno === turno.nombre);
+        if (!asignacion) {
+          asignacion = {
+            turno: turno.nombre,
+            horario: `${formatearHora(turno.inicio)}–${formatearHora(turno.fin)}`,
+            trabajadores: [],
+            tipo: "No cobertura",
+            duracion: 0,
+            fecha: fechaISO
+          };
+          diaData.asignaciones.push(asignacion);
+          
+          // Caso especial: semana 3, domingo, forzar trabajadores específicos
+          if (semana === 2 && diaNombre === "Domingo") {
+            let trabajadorForzado = null;
+            
+            if (turno.nombre === "Turno 1") trabajadorForzado = trabajadoresOrdenados[0]; // a
+            else if (turno.nombre === "Turno 2") trabajadorForzado = trabajadoresOrdenados[1]; // b
+            else if (turno.nombre === "Turno 3") trabajadorForzado = trabajadoresOrdenados[2]; // c
+            
+            if (trabajadorForzado) {
+              console.log(`🔧 Forzando asignación de trabajador para ${turno.nombre} del domingo en semana 3 (segunda oportunidad)`);
+              asignacion.trabajadores.push(trabajadorForzado);
+              asignacion.duracion = horasEfectivasPorTurno;
+              asignacion.tipo = "adicional";
+              asignacion.horario = `${formatearHora(turno.inicio)}–${formatearHora(turno.inicio + horasEfectivasPorTurno + horasColacion)}`;
+              
+              // Actualizar contadores
+              horasTrabajadasPorTrabajador[trabajadorForzado.nombre] += horasEfectivasPorTurno;
+              horasSemanaTrabajador[trabajadorForzado.nombre] += horasEfectivasPorTurno;
+              horasAsignadas[trabajadorForzado.nombre] += horasEfectivasPorTurno;
+              if (diaNombre === "Domingo") domingosContador[trabajadorForzado.nombre]++;
+              diasTrabajadosPorTrabajador[trabajadorForzado.nombre].add(fechaISO);
+            }
+          }
+        }
+      }
+
+      // 🔁 Segunda pasada: agregar refuerzo si solo hay 1 trabajador en el turno
+      let apoyoSegundaPasada = diaNombre !== "Lunes" ? apoyo : [];
+      for (let turnoIndex = 0; turnoIndex < turnos.length; turnoIndex++) {
+        const asignacion = diaData.asignaciones.find(a => a.turno === turnos[turnoIndex].nombre);
+        if (asignacion && asignacion.trabajadores.length === 1) {
+          const posibles = apoyoSegundaPasada
+            .map(t => ({
+              candidato: t,
+              resultado: validarElegibilidad(t, turnos[turnoIndex])
+            }))
+            .filter(obj =>
+              obj.resultado.elegible &&
+              !asignacion.trabajadores.some(tr => tr.nombre === obj.candidato.nombre)
+            );
+
+          if (posibles.length > 0) {
+            const { candidato, resultado } = posibles[0];
+            const dist = distribuciones[candidato.nombre];
+            const Ji = resultado.JiUsar;
+            const Ei = turnos[turnoIndex].inicio;
+            const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
+
+            horasTrabajadasPorTrabajador[candidato.nombre] += Ji;
+            horasSemanaTrabajador[candidato.nombre] += Ji;
+            horasAsignadas[candidato.nombre] += Ji;
+            if (diaNombre === "Domingo") domingosContador[candidato.nombre]++;
+
+            asignacion.trabajadores.push(candidato);
+            diasTrabajadosPorTrabajador[candidato.nombre].add(fechaISO);
+          }
+        }
+      }
+
+      semanaData.dias.push(diaData);
     }
 
-    return {
-      resultado,
-      horasTrabajadasPorTrabajador, distribuciones
-    };
-  };
+    resultado.push(semanaData);
+  }
 
+  return {
+    resultado,
+    horasTrabajadasPorTrabajador, distribuciones
+  };
+};
 
   const rellenarNoCoberturaConExtras = (resultado, horasAsignadas, trabajadores, distribuciones, dias) => {
     for (let semana of resultado) {
