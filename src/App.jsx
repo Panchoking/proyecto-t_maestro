@@ -1,4 +1,4 @@
-import TurnoRotativos from './TurnoRotativos';
+import TurnoRotativos from './components/TurnoRotativos';
 
 
 function App() {

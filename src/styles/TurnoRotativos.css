@@ -1,0 +1,239 @@
+/* Estilo general del contenedor */
+.container {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
+  gap: 20px;
+  padding: 20px;
+  box-sizing: border-box;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+}
+
+/* Panel izquierdo con controles */
+.left-panel {
+  flex: 0 0 400px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+/* Panel derecho con malla de turnos */
+.right-panel {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Título principal */
+.title {
+  color: #1a365d;
+  font-size: 1.8rem;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+/* Tarjetas para agrupar información */
+.card {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.card h2 {
+  color: #2c5282;
+  font-size: 1.4rem;
+  margin-top: 0;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.card h3 {
+  color: #2b6cb0;
+  font-size: 1.2rem;
+  margin-top: 16px;
+  margin-bottom: 12px;
+}
+
+/* Grupos de entrada */
+.input-group {
+  margin-bottom: 16px;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.input-group input, 
+.input-group select {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.input-group input[type="date"] {
+  font-family: inherit;
+}
+
+/* Botones */
+.primary-button {
+  background-color: #3182ce;
+  color: white;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.primary-button:hover {
+  background-color: #2b6cb0;
+}
+
+.primary-button:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+.delete-button {
+  background-color: #e53e3e;
+  color: white;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.delete-button:hover {
+  background-color: #c53030;
+}
+
+.export-button {
+  background-color: #38a169;
+  color: white;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 20px;
+  width: 100%;
+  transition: background-color 0.2s;
+}
+
+.export-button:hover {
+  background-color: #2f855a;
+}
+
+.export-button:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
+}
+
+/* Lista de trabajadores */
+.worker-list {
+  margin-bottom: 16px;
+}
+
+.worker-list ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.worker-list li {
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* Tabla de turnos */
+.table-container {
+  overflow-x: auto;
+}
+
+.turno-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+.turno-table th,
+.turno-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.turno-table th {
+  background-color: #ebf8ff;
+  color: #2c5282;
+  font-weight: 600;
+}
+
+.turno-table tr:nth-child(even) {
+  background-color: #f7fafc;
+}
+
+.turno-table tr:hover {
+  background-color: #ebf8ff;
+}
+
+/* Mensajes de alerta e información */
+.alert {
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background-color: #fed7d7;
+  color: #c53030;
+  border-left: 4px solid #e53e3e;
+}
+
+.info {
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background-color: #bee3f8;
+  color: #2b6cb0;
+  border-left: 4px solid #3182ce;
+}
+
+.success {
+  padding: 10px 12px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background-color: #c6f6d5;
+  color: #276749;
+  border-left: 4px solid #38a169;
+}
+
+/* Adaptaciones responsive */
+@media (max-width: 1000px) {
+  .container {
+    flex-direction: column;
+  }
+  
+  .left-panel {
+    flex: 0 0 auto;
+    width: 100%;
+    margin-bottom: 30px;
+  }
+  
+  .right-panel {
+    width: 100%;
+  }
+}
