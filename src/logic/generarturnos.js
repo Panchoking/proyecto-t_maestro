@@ -80,7 +80,7 @@ export const generarTurnos = ({
         // Procesar cada día de la semana
         for (let diaIndex = 0; diaIndex < dias.length; diaIndex++) {
             const fechaActual = new Date(fechaInicio);
-            fechaActual.setDate(fechaInicio.getDate() + semana * dias.length + diaIndex);
+            fechaActual.setDate(fechaInicio.getDate() + semana * 7 + diaIndex);
             const fechaISO = fechaActual.toISOString().split('T')[0];
             const diaNombre = dias[diaIndex];
             const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
