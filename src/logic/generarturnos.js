@@ -65,12 +65,14 @@ export const generarTurnos = ({
             lista[(inicio + i) % lista.length]
         );
     };
+    let patronSemana1 = [];
 
     // Procesar cada semana
     for (let semana = 0; semana < semanas; semana++) {
         const semanaData = { semana: semana + 1, dias: [] };
         const horasSemanaTrabajador = {};
         const diasTrabajadosPorTrabajador = {};
+    
 
         trabajadores.forEach(t => {
             horasSemanaTrabajador[t.nombre] = 0;
@@ -85,9 +87,74 @@ export const generarTurnos = ({
             const diaNombre = dias[diaIndex];
             const diaData = { dia: diaNombre, fecha: fechaISO, asignaciones: [] };
 
+
+                    // 🎯 CASO PERSONALIZADO PARA SOLO 2 TRABAJADORES
+        if (trabajadoresOrdenados.length === 2) {
+            let trabajadoresAsignados = [];
+
+            if (diaNombre === "Lunes") {
+                trabajadoresAsignados = [trabajadoresOrdenados[0]]; // solo 'a'
+            } else if (diaNombre === "Domingo") {
+                trabajadoresAsignados = [trabajadoresOrdenados[1]]; // solo 'b'
+            } else {
+                trabajadoresAsignados = [...trabajadoresOrdenados]; // ambos
+            }
+
+            for (let turno of turnos) {
+                const Ji = horasEfectivasPorTurno;
+                const Ei = turno.inicio;
+                const Si = parseFloat((Ei + Ji + horasColacion).toFixed(2));
+
+                const asignacion = {
+                    turno: turno.nombre,
+                    horario: `${formatearHora(Ei)}–${formatearHora(Si)}`,
+                    trabajadores: trabajadoresAsignados,
+                    tipo: "fijo",
+                    duracion: Ji,
+                    fecha: fechaISO
+                };
+
+                for (const t of trabajadoresAsignados) {
+                    horasTrabajadasPorTrabajador[t.nombre] += Ji;
+                    horasSemanaTrabajador[t.nombre] += Ji;
+                    diasTrabajadosPorTrabajador[t.nombre].add(fechaISO);
+                    if (diaNombre === "Domingo") domingosContador[t.nombre]++;
+                }
+
+                diaData.asignaciones.push(asignacion);
+            }
+
+            semanaData.dias.push(diaData);
+            continue; // saltar resto de lógica normal
+        }
+
+
+
+
             // Definir grupos base y apoyo según patrón de semana
             let base = [];
             let apoyo = [];
+
+
+
+            if (trabajadoresOrdenados.length === 2 && semana === 0) {
+                const trabajador = (diaIndex % 2 === 0)
+                    ? trabajadoresOrdenados[0]
+                    : trabajadoresOrdenados[1];
+                patronSemana1.push(trabajador.nombre);
+            }
+            // Reutilizar el patrón capturado para semanas 2, 3 y 4
+            if (trabajadoresOrdenados.length === 2 && semana > 0) {
+                const trabajadorNombre = patronSemana1[diaIndex % patronSemana1.length];
+                const trabajador = trabajadoresOrdenados.find(t => t.nombre === trabajadorNombre);
+                base = [trabajador];
+                apoyo = [];
+                console.log(` Reutilizando patrón semana 1: ${trabajador.nombre} - Día ${diaNombre}`);
+                // Saltamos el resto de la lógica semanal para este caso
+                semanaData.dias.push(diaData);
+                
+            }
+
 
             // Cantidad de trabajadores ajustada dinámicamente según los turnos disponibles
             const cantidadBase = Math.min(3, trabajadoresOrdenados.length, turnos.length);
@@ -627,7 +694,7 @@ export const rellenarNoCoberturaConExtras = (
     horasColacion,
     horasEfectivasPorTurno = 8
 ) => {
-    if (!resultado || !Array.isArray(resultado) || 
+    if (!resultado || !Array.isArray(resultado) ||
         !trabajadores || !Array.isArray(trabajadores) ||
         !turnos || !Array.isArray(turnos)) {
         return { resultado, horasAsignadas };
@@ -635,22 +702,22 @@ export const rellenarNoCoberturaConExtras = (
 
     for (let semana of resultado) {
         if (!semana || !semana.dias) continue;
-        
+
         for (let diaIndex = 0; diaIndex < semana.dias.length; diaIndex++) {
             const dia = semana.dias[diaIndex];
             if (!dia || !dia.asignaciones) continue;
 
             for (let asignacion of dia.asignaciones) {
                 if (!asignacion) continue;
-                
+
                 // Si ya tiene al menos 1 trabajador, no intervenir
                 if (asignacion.trabajadores && asignacion.trabajadores.length >= 1) continue;
 
                 const candidatos = trabajadores.filter((t) => {
                     if (!t || !t.nombre) return false;
-                    
-                    const yaAsignado = asignacion.trabajadores && 
-                                      asignacion.trabajadores.some(tr => tr && tr.nombre === t.nombre);
+
+                    const yaAsignado = asignacion.trabajadores &&
+                        asignacion.trabajadores.some(tr => tr && tr.nombre === t.nombre);
                     if (yaAsignado) return false;
 
                     const dist = distribuciones[t.nombre];
@@ -678,7 +745,7 @@ export const rellenarNoCoberturaConExtras = (
                     if (!asignacion.trabajadores) {
                         asignacion.trabajadores = [];
                     }
-                    
+
                     // Agregar a la asignación
                     asignacion.trabajadores.push(refuerzo);
 
