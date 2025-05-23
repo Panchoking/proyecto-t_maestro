@@ -393,7 +393,8 @@ export const generarTurnos = ({
                 let asignado = false;
 
                 // Casos especiales para semanas 3-4 en domingos - forzar el patrón específico
-                if (semana >= 2 && diaNombre === "Domingo" && turnoIndex < apoyo.length) {
+                if (trabajadoresOrdenados.length >= 3 && semana >= 2 && diaNombre === "Domingo" && turnoIndex < apoyo.length) {
+
                     const trabajadorEspecifico = apoyo[turnoIndex];
 
                     if (trabajadorEspecifico) {
@@ -515,7 +516,8 @@ export const generarTurnos = ({
                     diaData.asignaciones.push(asignacion);
 
                     // Caso especial: forzar asignación para domingo en semanas 3-4
-                    if ((semana === 2 || semana === 3) && diaNombre === "Domingo") {
+                    if ((semana === 2 || semana === 3) && diaNombre === "Domingo" && trabajadoresOrdenados.length >= 3) {
+
                         // Determinar qué patrón usar
                         const patronDomingo = semana === 2
                             ? [0, 1, 2] // a, b, c para semana 3
